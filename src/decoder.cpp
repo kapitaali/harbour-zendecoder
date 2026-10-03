@@ -117,6 +117,7 @@ Decoder::Decoder(QObject *parent)
     , m_static(Q_NULLPTR)
     , m_settings(Q_NULLPTR)
     , m_formatMask(FormatGroup::All)
+    , m_appActive(true)
 {
     // No parent: a parented object cannot be moveToThread()'d, so
     // StaticDecoder is owned outright and deleted here first.
@@ -128,6 +129,15 @@ Decoder::Decoder(QObject *parent)
 void Decoder::setSettings(Settings *settings)
 {
     m_settings = settings;
+}
+
+void Decoder::setApplicationActive(bool active)
+{
+    if (m_appActive == active)
+        return;
+    m_appActive = active;
+    qInfo("application %s", active ? "active" : "inactive");
+    emit applicationActiveChanged(active);
 }
 
 Decoder::~Decoder()
@@ -397,11 +407,14 @@ void Decoder::submitFrame(const QImage &image, bool oneShot)
     m_pendingImage = image;
     m_lastSubmit.start();
 
-    // Logged when it isn't the default, or for imports — the live loop's
-    // per-frame line would bury it otherwise.
-    if (m_formatMask != FormatGroup::All || oneShot)
-        std::fprintf(stderr, "[%s] decode submit mask=0x%x oneShot=%d\n",
-                     timestamp(), m_formatMask, oneShot ? 1 : 0);
+    // qInfo, not fprintf: in a sandboxed run stderr is the booster's
+    // socket and never reaches zendecoder.log. Logged only when the mask
+    // CHANGES, so the live loop's per-frame submits stay quiet.
+    static quint32 s_loggedMask = FormatGroup::All;
+    if (m_formatMask != s_loggedMask) {
+        s_loggedMask = m_formatMask;
+        qInfo("decode formats mask=0x%x", m_formatMask);
+    }
     m_static->submit(image, m_formatMask);
 }
 
@@ -426,7 +439,9 @@ void Decoder::staticDecodeFinished(bool found, const QString &text,
     // settings, so letting it answer when the user turned QR off would
     // decode exactly what they asked not to.
     if (!(m_formatMask & FormatGroup::Matrix)) {
-        abortDecode("static miss, QR group disabled");
+        abortDecode(m_formatMask == 0
+                            ? "all format groups disabled"
+                            : "static miss, QR group disabled");
         return;
     }
 

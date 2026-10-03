@@ -111,6 +111,15 @@ public:
      */
     void setSettings(Settings *settings);
 
+    /**
+     * The window losing/gaining focus (wired to QGuiApplication's
+     * applicationStateChanged in main()). Emits applicationActiveChanged
+     * on transitions only; ScannerPage stops the camera and capture loop
+     * when it goes inactive so no battery is spent scanning an app the
+     * user has put away.
+     */
+    void setApplicationActive(bool active);
+
 signals:
     /**
      * The text carried by the code that was just decoded, plus its
@@ -126,6 +135,8 @@ signals:
      * of going quiet.
      */
     void notFound();
+    /** Window focus changed; see setApplicationActive(). */
+    void applicationActiveChanged(bool active);
 
 private slots:
     /** Queued: writes the pixels out and calls the service. */
@@ -177,6 +188,7 @@ private:
     StaticDecoder *m_static;   // vendored zxing-cpp on a worker thread
     Settings *m_settings;      // format toggles (never owned; set by main())
     quint32 m_formatMask;      // groups enabled when the current decode started
+    bool m_appActive;          // window has focus (see setApplicationActive)
 };
 
 #endif // DECODER_H

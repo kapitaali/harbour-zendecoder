@@ -27,6 +27,10 @@ Page {
 
     property bool succeeded: false
     property int captureFailures: 0
+    // False while the app is in the background (cover/other app): the
+    // capture loop and camera must go idle there or the scan cadence
+    // keeps the camera HAL — and the battery — working for nobody.
+    property bool appActive: true
 
     function noteCaptureFailure() {
         if (++captureFailures === 3) {
@@ -89,7 +93,8 @@ Page {
         repeat: true
         running: scannerPage.pendingGalleryOp !== null
         onTriggered: {
-            if (scannerPage.status === PageStatus.Active
+            if (scannerPage.appActive
+                    && scannerPage.status === PageStatus.Active
                     && pageStack.currentPage === scannerPage
                     && !pageStack.busy) {
                 scannerPage.deliverGalleryOp()
@@ -142,7 +147,8 @@ Page {
         id: captureTimer
         interval: 700
         repeat: true
-        running: scannerPage.status === PageStatus.Active && !scannerPage.succeeded
+        running: scannerPage.appActive && scannerPage.status === PageStatus.Active
+                 && !scannerPage.succeeded
         onTriggered: {
             if (camera.status === Camera.UnloadedStatus) {
                 if (++scannerPage.unloadedTicks >= 3 && scannerPage.cameraRestarts < 5) {
@@ -172,7 +178,8 @@ Page {
     onStatusChanged: {
         if (status === PageStatus.Active) {
             captureFailures = 0
-            camera.start()
+            if (scannerPage.appActive)
+                camera.start()
             // NOTE: gallery results are NOT delivered here — pushing a
             // page while Silica is still updating status causes the
             // binding-loop warning and a swallowed toast. The settle-timer
@@ -279,8 +286,23 @@ Page {
 
     Connections {
         target: decoder
+        onApplicationActiveChanged: {
+            // Window focus (main.cpp -> applicationStateChanged): park the
+            // camera and, via its binding, the capture loop whenever the
+            // app is put away; resume only if this page is still the one
+            // on screen.
+            scannerPage.appActive = active
+            decoder.logMessage("app active=" + active)
+            if (!active) {
+                camera.stop()
+            } else if (scannerPage.status === PageStatus.Active
+                       && !scannerPage.succeeded) {
+                camera.start()
+            }
+        }
         onDecoded: {
-            if (scannerPage.status === PageStatus.Active && !scannerPage.succeeded) {
+            if (scannerPage.appActive && scannerPage.status === PageStatus.Active
+                    && !scannerPage.succeeded) {
                 scannerPage.succeed(text, format)
             } else {
                 // Gallery one-shot (or a straggler from the live loop):
@@ -288,14 +310,16 @@ Page {
                 decoder.logMessage("decoded queued, status=" + scannerPage.status)
                 var id = history.addScan(format, text)
                 scannerPage.pendingGalleryOp = { entry: { scanId: id, format: format, value: text } }
-                if (scannerPage.status === PageStatus.Active && !scannerPage.succeeded)
+                if (scannerPage.appActive && scannerPage.status === PageStatus.Active
+                        && !scannerPage.succeeded)
                     scannerPage.deliverGalleryOp()
             }
         }
         onNotFound: {
             decoder.logMessage("notFound queued, status=" + scannerPage.status)
             scannerPage.pendingGalleryOp = { entry: null }
-            if (scannerPage.status === PageStatus.Active && !scannerPage.succeeded)
+            if (scannerPage.appActive && scannerPage.status === PageStatus.Active
+                    && !scannerPage.succeeded)
                 scannerPage.deliverGalleryOp()
         }
     }

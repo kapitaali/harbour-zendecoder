@@ -116,6 +116,15 @@ int main(int argc, char *argv[])
     // nothing is attached until QML asks for a capture).
     decoder.setSettings(&settings);
 
+    // Focus -> scanner: the instant the window loses focus, ScannerPage
+    // stops the camera and the capture loop (see decoder.h). Without this
+    // the loop would keep taking 1920x1440 stills behind the cover, and
+    // the system's camerahalserver would stay awake on battery.
+    QObject::connect(app.data(), &QGuiApplication::applicationStateChanged,
+                     &decoder, [&decoder](Qt::ApplicationState state) {
+                         decoder.setApplicationActive(state == Qt::ApplicationActive);
+                     });
+
     QQmlContext *context = view->rootContext();
     context->setContextProperty("decoder", &decoder);
     context->setContextProperty("history", &history);
