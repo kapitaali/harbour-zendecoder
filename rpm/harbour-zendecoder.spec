@@ -3,7 +3,10 @@ Summary:    Barcode and QR code reader for Sailfish OS
 Version: 0.1.0
 Release:    1
 Group:      Qt/Qt
-License:    GPL-3.0-only
+# App code is GPL-3.0 (LICENSE); the vendored decoder adds zxing-cpp
+# (3rdparty/zxing-cpp/LICENSE, Apache-2.0) and its libzueci
+# (BSD-3-Clause, SPDX tag in each file).
+License:    GPL-3.0-only AND Apache-2.0 AND BSD-3-Clause
 URL:        https://github.com/kapitaali/harbour-zendecoder
 Source0:    %{name}-%{version}.tar.bz2
 
@@ -24,14 +27,15 @@ BuildRequires: pkgconfig(Qt5Sql)
 BuildRequires: pkgconfig(Qt5Multimedia)
 BuildRequires: pkgconfig(Qt5DBus)
 BuildRequires: pkgconfig(Qt5Network)
-BuildRequires: pkgconfig(Qt5Concurrent)
 BuildRequires: desktop-file-utils
 
 %description
 A native barcode and QR code reader for Sailfish OS: live camera scanning,
 gallery image import, manual entry, scan history with CSV/JSON export and
-optional product lookup. Decoding runs on-device via the system zxing
-service; product names come from Open Food Facts only when enabled.
+optional product lookup. Decoding runs on-device with the bundled zxing-cpp
+library (1D and 2D symbologies, symbology names included), falling back to
+the system zxing service for QR codes; product names come from Open Food
+Facts only when enabled.
 
 %prep
 %setup -q -n %{name}-%{version}

@@ -82,6 +82,7 @@ QML_FILES = \
 OTHER_FILES += \
     harbour-zendecoder.desktop \
     rpm/harbour-zendecoder.spec \
+    PRIVACY.md \
     qml/img/harbour-zendecoder.png \
     $$QML_FILES
 
