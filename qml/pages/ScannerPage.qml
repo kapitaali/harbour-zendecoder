@@ -58,7 +58,10 @@ Page {
     function reset() {
         succeeded = false
         captureFailures = 0
-        camera.start()
+        // Only bring the camera up if we're actually the visible page of an
+        // active app — successTimer may fire after navigating elsewhere.
+        if (appActive && status === PageStatus.Active)
+            camera.start()
     }
 
     // Gallery one-shot results arrive asynchronously: usually while the
@@ -168,9 +171,15 @@ Page {
         property var entry
         interval: 900
         onTriggered: {
+            // ALWAYS reset first: the queue-delivery timer can push
+            // ResultPage ahead of us (burst duplicates of the decoded code
+            // arrive within the 900 ms), and skipping reset() back then
+            // left succeeded latched — captureTimer never ran again and
+            // the resume handler refused to restart the camera, so the
+            // scanner stayed dead for the rest of the session.
+            scannerPage.reset()
             if (pageStack.currentPage === scannerPage) {
                 pageStack.push(Qt.resolvedUrl("ResultPage.qml"), { entry: entry })
-                scannerPage.reset()
             }
         }
     }
@@ -304,6 +313,12 @@ Page {
             if (scannerPage.appActive && scannerPage.status === PageStatus.Active
                     && !scannerPage.succeeded) {
                 scannerPage.succeed(text, format)
+            } else if (scannerPage.succeeded) {
+                // Burst duplicate of the code we just caught: the live
+                // result owns the ResultPage push. Queueing this raced
+                // successTimer — whichever push lost also lost reset(),
+                // which latched succeeded and killed the session.
+                decoder.logMessage("decode dropped as duplicate of live result")
             } else {
                 // Gallery one-shot (or a straggler from the live loop):
                 // queue for delivery on next Active, when navigation is safe.
