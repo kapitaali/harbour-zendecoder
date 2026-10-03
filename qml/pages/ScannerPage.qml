@@ -7,15 +7,18 @@ import "../components"
 /*
  * Live barcode viewfinder (default page).
  *
- * Decoding goes through the system zxing service over D-Bus (see
- * src/decoder.h for why still captures are used instead of viewfinder
- * frames: the overlay backend runs no filter chain, QVideoProbe fails).
+ * Decoding is hybrid (see src/decoder.h): the vendored zxing-cpp on a
+ * worker thread decodes each still first — every symbology, symbology
+ * name included — and the system zxing D-Bus service answers when that
+ * finds nothing (QR only, format comes back empty from that path).
+ * Still captures rather than viewfinder frames because the overlay
+ * backend runs no filter chain and QVideoProbe fails (see decoder.h).
  * The page takes still captures into a private cache file and hands each
  * written file to decoder.submitImageFile(); a decoded value is stored in
- * history and pushed to ResultPage.
+ * history and pushed to ResultPage. Gallery imports arrive through
+ * decoder.decodeFile() and report misses via onNotFound.
  *
- * v0.1: the service returns text only (format empty). ResultPage shows the
- * raw value + product lookup for GTINs.
+ * ResultPage shows the raw value + symbology + product lookup for GTINs.
  */
 Page {
     id: scannerPage

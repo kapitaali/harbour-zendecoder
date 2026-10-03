@@ -1,18 +1,36 @@
 /*
- * Barcode decoding.
+ * Barcode decoding — hybrid pipeline.
  *
- * ScanPage's Camera takes still captures (the same camerabin image branch the
- * gallery app uses for photos); Camera.imageCapture emits imageSaved with the
- * file it wrote, and that file is handed to submitImageFile(), converted to
- * tightly packed ARGB32 and passed to the barcode service the system ships —
- * org.amberapi.zxing (zxing-daemon from the qr-filter-qml-plugin package) —
- * which answers with the text a code carries. The temporary file is deleted
- * after reading so scanning never litters the gallery.
+ * ScanPage's Camera takes still captures (the same camerabin image branch
+ * the gallery app uses for photos); Camera.imageCapture emits imageSaved
+ * with the file it wrote, and that file is handed to submitImageFile(),
+ * decoded, and deleted again so scanning never litters the gallery.
+ * Gallery imports go through decodeFile(), which never deletes.
  *
- * Talking to that service over Qt5DBus instead of importing Amber.QrFilter is
- * deliberate: Harbour rejects the Amber.* QML modules, while Qt5DBus and
- * QtMultimedia are both on the allowed list, and a type built into the
- * application needs no module at all (it reaches QML as a context property).
+ * TWO DECODERS, STATIC FIRST:
+ *
+ *  1. StaticDecoder (src/staticdecoder.*) — the vendored zxing-cpp
+ *     (3rdparty/, readers-only static build, ALL symbologies) on a worker
+ *     thread. Primary path for both gallery and live captures: it names
+ *     the symbology (EAN-13, Code 128, …), and the system daemon cannot
+ *     see 1D codes at all.
+ *  2. org.amberapi.zxing (zxing-daemon from qr-filter-qml-plugin) over
+ *     Qt5DBus — the fallback when the static decoder finds nothing.
+ *     QR-only by construction (service/service.cpp:90 sets formats to
+ *     QRCode), but a proven path that has shipped on this phone all
+ *     along, so it stays as insurance. The log line says which path
+ *     answered: "static decoded" vs "service decoded".
+ *
+ * One decode in flight at a time: m_busy is acquired when an image enters
+ * submitFrame() and released only when a terminal result arrives (static
+ * hit, daemon reply, or an abortDecode() on any failure). m_oneShot marks
+ * gallery imports — their failures surface as notFound() so the UI can
+ * say "no code found"; the live loop stays silent on misses (they happen
+ * every frame). m_pendingImage holds the frame for the daemon fallback.
+ *
+ * Talking to the service over Qt5DBus instead of importing Amber.QrFilter
+ * is deliberate: Harbour rejects the Amber.* QML modules, while Qt5DBus
+ * and QtMultimedia are both on the allowed list.
  *
  * WHY STILL CAPTURES INSTEAD OF VIEWFINDER FRAMES: on-device the camera
  * service exposes neither QVideoRendererControl nor the GStreamer sink
@@ -25,12 +43,6 @@
  * (The QML-visible preview signal imageCaptured never fires here — camerabin
  * only emits it with a preview buffer message that does not arrive — which is
  * why the flow keys off imageSaved, the signal the written file guarantees.)
- *
- * v0.1 note: the daemon answers with the decoded TEXT only, no symbology.
- * The decoded() signal therefore carries format as an empty string; the
- * second parameter exists so QML already written against
- * decoded(text, format) keeps working once the vendored static decoder
- * (PLAN.md §2 plan B, full zxing-cpp with BarcodeFormat) lands.
  */
 #ifndef DECODER_H
 #define DECODER_H
@@ -43,6 +55,7 @@
 #include <QTime>
 
 class QDBusPendingCallWatcher;
+class StaticDecoder;
 
 class Decoder : public QObject
 {
@@ -92,14 +105,17 @@ public:
 
 signals:
     /**
-     * The text carried by the code that was just decoded. Format is empty
-     * in v0.1 (daemon returns text only); reserved for the static decoder.
+     * The text carried by the code that was just decoded, plus its
+     * symbology name ("QR Code", "EAN-13", …) from the static decoder.
+     * The daemon fallback only answers QR and reports no symbology, so
+     * format comes back empty from that path.
      */
     void decoded(const QString &text, const QString &format);
     /**
-     * A one-shot decodeFile() finished with no code found. The live loop
-     * stays silent on empties (they happen every frame); this lets the
-     * gallery UI say so instead of going quiet.
+     * A one-shot decodeFile() finished with no code found (static miss
+     * AND daemon miss/failure). The live loop stays silent on empties
+     * (they happen every frame); this lets the gallery UI say so instead
+     * of going quiet.
      */
     void notFound();
 
@@ -107,12 +123,26 @@ private slots:
     /** Queued: writes the pixels out and calls the service. */
     void submitPending();
     void callFinished(QDBusPendingCallWatcher *watcher);
+    /** StaticDecoder's worker thread reports (queued). */
+    void staticDecodeFinished(bool found, const QString &text,
+                              const QString &format, int elapsedMs);
     /** Timestamped readiness log line (cadence diagnostics). */
     void logReady(bool ready);
 
 private:
-    /** Converts one still to packed ARGB32 and queues the decode. */
-    void submitFrame(const QImage &image);
+    /**
+     * One still into the pipeline: sample gate (bypassed for one-shot
+     * imports), busy acquire, then static decode. oneShot is stored only
+     * once the busy flag is held so a dropped frame can't leave it set.
+     */
+    void submitFrame(const QImage &image, bool oneShot);
+    /** Static miss → pack m_pendingImage as ARGB32 for the daemon. */
+    bool packPixels();
+    /**
+     * Terminal failure: release busy, consume m_oneShot (emitting
+     * notFound() for gallery imports), log why.
+     */
+    void abortDecode(const char *why);
 
     /**
      * Asks the camera for a scan-sized capture resolution. Returns true when
@@ -121,7 +151,7 @@ private:
      */
     bool configureResolution(QObject *capture);
     void attemptResolution(int attempt);
-    void loadFile(const QString &fileName, bool deleteAfter);
+    void loadFile(const QString &fileName, bool deleteAfter, bool oneShot);
 
     QPointer<QObject> m_camera;         // the QML Camera
     QPointer<QObject> m_captureGroup;   // the camera's imageCapture group
@@ -135,6 +165,8 @@ private:
     int m_width;
     int m_height;
     int m_fd;                  // kept open until the service has read it
+    QImage m_pendingImage;     // original frame, kept for the daemon fallback
+    StaticDecoder *m_static;   // vendored zxing-cpp on a worker thread
 };
 
 #endif // DECODER_H

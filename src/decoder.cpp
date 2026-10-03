@@ -1,12 +1,15 @@
 /*
- * Barcode decoding — see decoder.h for the capture-based flow and why the
- * platform service is used.
+ * Barcode decoding — see decoder.h for the two-decoder pipeline and the
+ * capture-based flow.
  *
- * submitImageFile() loads one captured still (scaled while decoding) and
- * converts it to tightly packed ARGB32 -> submitPending() writes the pixels
- * into a memfd and calls the service asynchronously -> callFinished() emits
- * decoded() and lets the next image through. One decode in flight at a time
- * keeps things cheap.
+ * submitImageFile()/decodeFile() load one image (EXIF-oriented, scaled
+ * while decoding) and hand it to submitFrame(), which acquires the busy
+ * flag and submits to the StaticDecoder worker thread. staticDecodeFinished()
+ * then either reports the hit (static decoded) or packs the frame as
+ * tightly packed ARGB32 and falls back to the system service —
+ * submitPending() writes the pixels into a memfd and calls
+ * org.amberapi.zxing asynchronously -> callFinished() finishes the chain.
+ * One decode in flight at a time keeps things cheap.
  *
  * Diagnostics go to stderr with fprintf: Sailfish's QtBuild routes qWarning
  * to the system journal (libQt5Core links sd_journal_send), which an
@@ -16,6 +19,7 @@
  */
 
 #include "decoder.h"
+#include "staticdecoder.h"
 
 #include <QtDBus/QDBusConnection>
 #include <QtDBus/QDBusError>
@@ -28,6 +32,7 @@
 #include <QtMultimedia/QCamera>
 #include <QtMultimedia/QCameraViewfinderSettings>
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QImageReader>
@@ -107,13 +112,28 @@ Decoder::Decoder(QObject *parent)
     , m_width(0)
     , m_height(0)
     , m_fd(-1)
+    , m_static(Q_NULLPTR)
 {
+    // No parent: a parented object cannot be moveToThread()'d, so
+    // StaticDecoder is owned outright and deleted here first.
+    m_static = new StaticDecoder;
+    connect(m_static, &StaticDecoder::resultReady,
+            this, &Decoder::staticDecodeFinished);
 }
 
 Decoder::~Decoder()
 {
-    if (m_fd >= 0)
+    // Order matters: stopping the worker first guarantees no further
+    // resultReady emission, then dropping this object's queued events
+    // removes the result that emission may just have posted — so nothing
+    // runs on a half-destroyed Decoder. The memfd goes last.
+    delete m_static;
+    m_static = Q_NULLPTR;
+    QCoreApplication::removePostedEvents(this, 0);
+    if (m_fd >= 0) {
         close(m_fd);
+        m_fd = -1;
+    }
 }
 
 void Decoder::logMessage(const QString &message)
@@ -274,24 +294,23 @@ bool Decoder::configureResolution(QObject *capture)
 
 void Decoder::submitImageFile(const QString &fileName)
 {
-    m_oneShot = false; // live loop: empties stay silent
-    loadFile(fileName, true);
+    loadFile(fileName, true, false);     // live loop: empties stay silent
 }
 
 void Decoder::decodeFile(const QString &fileName)
 {
-    m_oneShot = true; // gallery import: report empties via notFound()
-    loadFile(fileName, false);
+    loadFile(fileName, false, true);     // gallery import: report empties
 }
 
-void Decoder::loadFile(const QString &fileName, bool deleteAfter)
+void Decoder::loadFile(const QString &fileName, bool deleteAfter, bool oneShot)
 {
     // Every capture is logged: scans produce one file per second at most,
     // and the log shows how long each cycle takes.
     ++m_frames;
     const QString path = localPath(fileName);
-    std::fprintf(stderr, "[%s] decode file #%d %s (delete=%d)\n", timestamp(), m_frames,
-                 qPrintable(path), deleteAfter ? 1 : 0);
+    std::fprintf(stderr, "[%s] decode file #%d %s (delete=%d, oneShot=%d)\n",
+                 timestamp(), m_frames, qPrintable(path), deleteAfter ? 1 : 0,
+                 oneShot ? 1 : 0);
     std::fflush(stderr);
 
     QImageReader reader(path);
@@ -315,6 +334,13 @@ void Decoder::loadFile(const QString &fileName, bool deleteAfter)
                      qPrintable(reader.errorString()));
         std::fflush(stderr);
         qWarning("decode read failed: %s", qPrintable(reader.errorString()));
+        // Busy was never acquired here (loadFile runs before submitFrame),
+        // so this reports the failure directly instead of going through
+        // abortDecode() — which would release a frame's busy flag.
+        if (oneShot) {
+            qInfo("decode one-shot: read failed");
+            emit notFound();
+        }
         return;
     }
 
@@ -324,29 +350,85 @@ void Decoder::loadFile(const QString &fileName, bool deleteAfter)
     qInfo("decode image %dx%d (delete=%d)", image.width(), image.height(),
           deleteAfter ? 1 : 0);
 
-    submitFrame(image);
+    submitFrame(image, oneShot);
 }
 
-void Decoder::submitFrame(const QImage &image)
+void Decoder::submitFrame(const QImage &image, bool oneShot)
 {
-    if (image.isNull())
+    if (image.isNull()) {
+        if (oneShot)
+            emit notFound();
         return;
+    }
 
-    if (!m_busy.testAndSetOrdered(0, 1))
-        return;                         // a decode is still in flight
+    if (!m_busy.testAndSetOrdered(0, 1)) {
+        // A decode is still in flight. The live loop just drops the frame
+        // (the next capture retries); a gallery import gets its answer now
+        // rather than hanging a spinner — dropping it silently would leave
+        // the gallery UI waiting forever.
+        if (oneShot) {
+            std::fprintf(stderr, "[%s] decode dropped: busy (one-shot)\n", timestamp());
+            std::fflush(stderr);
+            qInfo("decode one-shot: busy");
+            emit notFound();
+        }
+        return;
+    }
 
-    if (m_lastSubmit.isValid() && m_lastSubmit.elapsed() < kSampleIntervalMs) {
+    // Sample the live loop a few times per second. One-shot imports are a
+    // user action, not a capture — they always run.
+    if (!oneShot && m_lastSubmit.isValid()
+            && m_lastSubmit.elapsed() < kSampleIntervalMs) {
         m_busy.storeRelease(0);
         return;
     }
 
-    const QImage argb = image.format() == QImage::Format_ARGB32
-            ? image
-            : image.convertToFormat(QImage::Format_ARGB32);
-    if (argb.isNull()) {
+    m_oneShot = oneShot;   // only now: busy held, so this is the live chain
+    m_pendingImage = image;
+    m_lastSubmit.start();
+    m_static->submit(image);
+}
+
+void Decoder::staticDecodeFinished(bool found, const QString &text,
+                                   const QString &format, int elapsedMs)
+{
+    if (found) {
         m_busy.storeRelease(0);
+        const bool oneShot = m_oneShot;
+        m_oneShot = false;
+        m_pendingImage = QImage();
+        std::fprintf(stderr, "[%s] static decoded (%s, %d ms): %s\n", timestamp(),
+                     qPrintable(format), elapsedMs, qPrintable(text));
+        std::fflush(stderr);
+        qInfo("static decoded: [%s] %s", qPrintable(format), qPrintable(text));
+        emit decoded(text, format);
         return;
     }
+
+    // Static miss → the proven daemon path answers for QR, and the
+    // one-shot chain reports notFound() through abortDecode() if it fails.
+    std::fprintf(stderr, "[%s] static miss (%d ms) -> service fallback\n",
+                 timestamp(), elapsedMs);
+    std::fflush(stderr);
+
+    if (!packPixels()) {
+        abortDecode("static miss, no pixel payload for the service");
+        return;
+    }
+    QMetaObject::invokeMethod(this, "submitPending", Qt::QueuedConnection);
+}
+
+bool Decoder::packPixels()
+{
+    if (m_pendingImage.isNull())
+        return false;
+
+    const QImage argb = m_pendingImage.format() == QImage::Format_ARGB32
+            ? m_pendingImage
+            : m_pendingImage.convertToFormat(QImage::Format_ARGB32);
+    m_pendingImage = QImage();          // cleared either way (see header)
+    if (argb.isNull())
+        return false;
 
     // The daemon reads width*height*4 bytes with no stride, so rows are
     // repacked if the capture's lines happen to be padded.
@@ -362,22 +444,35 @@ void Decoder::submitFrame(const QImage &image)
 
     m_width = argb.width();
     m_height = argb.height();
-    m_lastSubmit.start();
+    return true;
+}
 
-    QMetaObject::invokeMethod(this, "submitPending", Qt::QueuedConnection);
+void Decoder::abortDecode(const char *why)
+{
+    const bool oneShot = m_oneShot;
+    m_oneShot = false;
+    m_pendingImage = QImage();
+    m_busy.storeRelease(0);
+
+    std::fprintf(stderr, "[%s] decode abort: %s\n", timestamp(), why);
+    std::fflush(stderr);
+    if (oneShot) {
+        qInfo("decode one-shot: %s", why);
+        emit notFound();
+    }
 }
 
 void Decoder::submitPending()
 {
     const int fd = createFrameFd();
     if (fd < 0) {
-        m_busy.storeRelease(0);
+        abortDecode("memfd_create failed");
         return;
     }
 
     if (write(fd, m_pixels.constData(), size_t(m_pixels.size())) != ssize_t(m_pixels.size())) {
         close(fd);
-        m_busy.storeRelease(0);
+        abortDecode("frame write failed");
         return;
     }
     lseek(fd, 0, SEEK_SET);
@@ -391,7 +486,7 @@ void Decoder::submitPending()
                          qPrintable(iface.lastError().message()),
                          qPrintable(iface.lastError().name()));
         close(fd);
-        m_busy.storeRelease(0);
+        abortDecode("service unavailable");
         return;
     }
 
@@ -417,6 +512,7 @@ void Decoder::callFinished(QDBusPendingCallWatcher *watcher)
         close(m_fd);
         m_fd = -1;
     }
+    m_pendingImage = QImage();  // the fallback payload has been read
     m_busy.storeRelease(0);
 
     if (watcher->isError()) {
@@ -447,9 +543,11 @@ void Decoder::callFinished(QDBusPendingCallWatcher *watcher)
                 emit notFound();
             }
         } else {
-            std::fprintf(stderr, "[%s] decoded: %s\n", timestamp(),
+            std::fprintf(stderr, "[%s] service decoded: %s\n", timestamp(),
                          qPrintable(text));
-            qInfo("decoded: %s", qPrintable(text));
+            qInfo("service decoded: %s", qPrintable(text));
+            // The daemon answers QR only and reports no symbology, so
+            // format stays empty on this path (see decoder.h).
             emit decoded(text, QString());
         }
     }

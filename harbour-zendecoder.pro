@@ -1,7 +1,13 @@
 # harbour-zendecoder.pro
 
 TARGET = harbour-zendecoder
-CONFIG += sailfishapp c++11
+CONFIG += sailfishapp
+
+# The vendored zxing-cpp (3rdparty/) needs C++20 (std::numbers, ranges,
+# starts_with) — and GCC 13 in the build engine has it. An explicit flag,
+# not CONFIG += c++11: the last -std on the command line wins, and qmake's
+# c++11 feature would otherwise squeeze gnu++0x in ahead of this one.
+QMAKE_CXXFLAGS += -std=gnu++20
 
 # Seed builds ship as full Pro (see src/trialmanager.h). Remove the define
 # to enforce the 14-day trial + Ko-fi license key.
@@ -34,11 +40,20 @@ _version_touch = $$system(touch $$PWD/src/harbour-zendecoder.cpp)
 isEmpty(KOFI_URL): KOFI_URL = https://ko-fi.com/kapitaali
 DEFINES += KOFI_URL=\\\"$$KOFI_URL\\\"
 
+# No Qt5Concurrent: the static decode runs on its own worker thread
+# (src/staticdecoder.*) instead of QThreadPool/QtConcurrent, whose
+# qfutureinterface.h does not survive this toolchain's C++20 mode next to
+# Qt 5.6 headers.
 QT += core gui qml quick sql multimedia dbus
+
+# Vendored zxing-cpp v3.0.2 (Apache-2.0) — readers-only static build, all
+# symbologies. See 3rdparty/zxing-cpp/zxing-cpp.pri for the file list.
+include(3rdparty/zxing-cpp/zxing-cpp.pri)
 
 SOURCES += \
     src/harbour-zendecoder.cpp \
     src/decoder.cpp \
+    src/staticdecoder.cpp \
     src/history.cpp \
     src/settings.cpp \
     src/trialmanager.cpp \
@@ -46,6 +61,7 @@ SOURCES += \
 
 HEADERS += \
     src/decoder.h \
+    src/staticdecoder.h \
     src/history.h \
     src/settings.h \
     src/trialmanager.h \
