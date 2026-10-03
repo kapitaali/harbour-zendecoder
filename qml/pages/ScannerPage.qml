@@ -35,6 +35,7 @@ Page {
         if (succeeded)
             return
         succeeded = true
+        pendingGalleryOp = null // live result wins; drop any straggler op
         captureTimer.stop()
         camera.stop()
         if (settings.soundEnabled) {
@@ -53,43 +54,25 @@ Page {
         camera.start()
     }
 
-    // Gallery one-shot results arrive while the file picker (or its
-    // internal pages) is on top. Navigating immediately races the picker's
-    // own transitions ("cannot pop/push while transition is in progress"),
-    // so results wait in galleryOp and a timer delivers them once the stack
-    // settles: pop back to this page, then push the result or toast.
-    // galleryPicker bounds the auto-pop to our own picker session so the
-    // timer can never eat a page the user opened themselves.
-    property var galleryPicker: null
-    property var galleryOp: null
+    // Gallery one-shot results arrive asynchronously: usually while the
+    // file picker is popping itself closed (status Activating) or just
+    // after. Navigating immediately races those transitions ("cannot
+    // pop/push while transition is in progress"), so results wait in
+    // pendingGalleryOp and are delivered from onStatusChanged the moment
+    // this page is Active again — Active means the stack has settled, so
+    // push/toast are always safe. No timers, no session handles.
+    property var pendingGalleryOp: null
 
-    Timer {
-        id: galleryOpTimer
-        interval: 350
-        repeat: true
-        running: scannerPage.galleryOp !== null
-        onTriggered: {
-            if (pageStack.busy)
-                return
-            if (pageStack.currentPage !== scannerPage) {
-                if (scannerPage.galleryPicker !== null) {
-                    pageStack.pop()
-                    return
-                }
-                // Picker session over (user backed out manually): drop it.
-                scannerPage.galleryOp = null
-                return
-            }
-            var op = scannerPage.galleryOp
-            scannerPage.galleryOp = null
-            scannerPage.galleryPicker = null
-            decoder.logMessage("galleryOp delivering, hasEntry=" + (op.entry !== null))
-            if (op.entry) {
-                pageStack.push(Qt.resolvedUrl("ResultPage.qml"),
-                               { entry: op.entry })
-            } else {
-                toast.show("No code found in that image")
-            }
+    function deliverGalleryOp() {
+        var op = pendingGalleryOp
+        pendingGalleryOp = null
+        if (op === null || op === undefined)
+            return
+        if (op.entry !== null && op.entry !== undefined) {
+            pageStack.push(Qt.resolvedUrl("ResultPage.qml"),
+                           { entry: op.entry })
+        } else {
+            toast.show("No code found in that image")
         }
     }
 
@@ -169,11 +152,9 @@ Page {
         if (status === PageStatus.Active) {
             captureFailures = 0
             camera.start()
-            // Picker session ended with nothing pending (user backed out):
-            // release the auto-pop guard so the timer can never touch
-            // pages the user opened themselves.
-            if (galleryOp === null)
-                galleryPicker = null
+            // A gallery result may have arrived while the picker was
+            // closing: the stack is settled now, deliver it.
+            deliverGalleryOp()
         } else if (status === PageStatus.Inactive && !succeeded) {
             camera.stop()
         }
@@ -244,11 +225,7 @@ Page {
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "Import from gallery"
-                onClicked: {
-                    var pg = pageStack.push(imagePickerPage)
-                    scannerPage.galleryPicker = pg
-                    decoder.logMessage("import opened, picker null=" + (pg === null))
-                }
+                onClicked: pageStack.push(imagePickerPage)
             }
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -281,27 +258,23 @@ Page {
     Connections {
         target: decoder
         onDecoded: {
-            decoder.logMessage("signal decoded, status=" + scannerPage.status
-                               + " pickerNull=" + (scannerPage.galleryPicker === null))
             if (scannerPage.status === PageStatus.Active && !scannerPage.succeeded) {
                 scannerPage.succeed(text, format)
-            } else if (scannerPage.galleryPicker !== null) {
-                // One-shot gallery decode: queue for the settles-timer
-                // (direct navigation races the picker's transitions).
-                var id = history.addScan(format, text)
-                scannerPage.galleryOp = { entry: { scanId: id, format: format, value: text } }
             } else {
-                decoder.logMessage("decoded dropped: inactive and no picker session")
+                // Gallery one-shot (or a straggler from the live loop):
+                // queue for delivery on next Active, when navigation is safe.
+                decoder.logMessage("decoded queued, status=" + scannerPage.status)
+                var id = history.addScan(format, text)
+                scannerPage.pendingGalleryOp = { entry: { scanId: id, format: format, value: text } }
+                if (scannerPage.status === PageStatus.Active && !scannerPage.succeeded)
+                    scannerPage.deliverGalleryOp()
             }
         }
         onNotFound: {
-            decoder.logMessage("signal notFound, status=" + scannerPage.status
-                               + " pickerNull=" + (scannerPage.galleryPicker === null))
-            if (scannerPage.galleryPicker !== null) {
-                scannerPage.galleryOp = { entry: null }
-            } else {
-                toast.show("No code found in that image")
-            }
+            decoder.logMessage("notFound queued, status=" + scannerPage.status)
+            scannerPage.pendingGalleryOp = { entry: null }
+            if (scannerPage.status === PageStatus.Active && !scannerPage.succeeded)
+                scannerPage.deliverGalleryOp()
         }
     }
 
