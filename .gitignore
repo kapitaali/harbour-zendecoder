@@ -1,0 +1,15 @@
+# Build artifacts — sfdk build compiles in place, in this directory.
+Makefile
+.qmake.stash
+*.o
+moc_*.cpp
+*.moc
+qmlcache/
+*.qmlc
+documentation.list
+
+# The binary is named after the directory it lives in.
+/harbour-zendecoder
+
+# Packaged output and per-target copies.
+RPMS/

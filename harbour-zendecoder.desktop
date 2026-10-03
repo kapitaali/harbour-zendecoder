@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+X-Nemo-Application-Type=silica-qt5
+Name=ZenDecoder
+Icon=harbour-zendecoder
+Exec=harbour-zendecoder
+
+[X-Sailjail]
+Permissions=Audio;Camera;UserDirs;Internet
+OrganizationName=harbour.zendecoder
+ApplicationName=harbour-zendecoder

@@ -1,0 +1,6 @@
+-------------------------------------------------------------------
+Sat Oct 03 2026 kapitaali <teppo@kapitaali.com> 0.1.0-1
+- Initial release: live camera scanning via system zxing service,
+  gallery import, manual entry, history with CSV/JSON export,
+  optional Open Food Facts product lookup, 14-day Pro trial
+  framework (seed builds run as full Pro).
