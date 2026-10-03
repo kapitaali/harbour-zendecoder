@@ -55,6 +55,7 @@
 #include <QTime>
 
 class QDBusPendingCallWatcher;
+class Settings;
 class StaticDecoder;
 
 class Decoder : public QObject
@@ -102,6 +103,13 @@ public:
      * errors, which otherwise stay invisible on-device.
      */
     Q_INVOKABLE void logMessage(const QString &message);
+
+    /**
+     * Hand over the persistent settings so each submission reads the
+     * current symbology group mask (Settings' format toggles). Called once
+     * from main() before anything is decoded; nullptr keeps everything on.
+     */
+    void setSettings(Settings *settings);
 
 signals:
     /**
@@ -167,6 +175,8 @@ private:
     int m_fd;                  // kept open until the service has read it
     QImage m_pendingImage;     // original frame, kept for the daemon fallback
     StaticDecoder *m_static;   // vendored zxing-cpp on a worker thread
+    Settings *m_settings;      // format toggles (never owned; set by main())
+    quint32 m_formatMask;      // groups enabled when the current decode started
 };
 
 #endif // DECODER_H

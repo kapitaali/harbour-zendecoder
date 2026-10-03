@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "formatgroups.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -28,6 +29,12 @@ Settings::Settings(QObject *parent)
     , m_vibrationEnabled(m_settings.value(QStringLiteral("vibrationEnabled"), true).toBool())
     , m_productLookupEnabled(m_settings.value(QStringLiteral("productLookupEnabled"), true).toBool())
     , m_torchOn(false)
+    // Every symbology group is on by default (PLAN.md); the keys only
+    // appear in the file once the user has moved a switch.
+    , m_formatRetail(m_settings.value(QStringLiteral("formatRetail"), true).toBool())
+    , m_formatLinear(m_settings.value(QStringLiteral("formatLinear"), true).toBool())
+    , m_formatMatrix(m_settings.value(QStringLiteral("formatMatrix"), true).toBool())
+    , m_formatPdf417(m_settings.value(QStringLiteral("formatPdf417"), true).toBool())
 {
 }
 
@@ -72,4 +79,66 @@ void Settings::setTorchOn(bool on)
         return;
     m_torchOn = on;
     emit torchOnChanged();
+}
+
+bool Settings::formatRetail() const { return m_formatRetail; }
+void Settings::setFormatRetail(bool on)
+{
+    if (m_formatRetail == on)
+        return;
+    m_formatRetail = on;
+    m_settings.setValue(QStringLiteral("formatRetail"), on);
+    m_settings.sync();
+    emit formatRetailChanged();
+    emit formatMaskChanged();
+}
+
+bool Settings::formatLinear() const { return m_formatLinear; }
+void Settings::setFormatLinear(bool on)
+{
+    if (m_formatLinear == on)
+        return;
+    m_formatLinear = on;
+    m_settings.setValue(QStringLiteral("formatLinear"), on);
+    m_settings.sync();
+    emit formatLinearChanged();
+    emit formatMaskChanged();
+}
+
+bool Settings::formatMatrix() const { return m_formatMatrix; }
+void Settings::setFormatMatrix(bool on)
+{
+    if (m_formatMatrix == on)
+        return;
+    m_formatMatrix = on;
+    m_settings.setValue(QStringLiteral("formatMatrix"), on);
+    m_settings.sync();
+    emit formatMatrixChanged();
+    emit formatMaskChanged();
+}
+
+bool Settings::formatPdf417() const { return m_formatPdf417; }
+void Settings::setFormatPdf417(bool on)
+{
+    if (m_formatPdf417 == on)
+        return;
+    m_formatPdf417 = on;
+    m_settings.setValue(QStringLiteral("formatPdf417"), on);
+    m_settings.sync();
+    emit formatPdf417Changed();
+    emit formatMaskChanged();
+}
+
+quint32 Settings::formatMask() const
+{
+    quint32 mask = 0;
+    if (m_formatRetail)
+        mask |= FormatGroup::Retail;
+    if (m_formatLinear)
+        mask |= FormatGroup::Linear;
+    if (m_formatMatrix)
+        mask |= FormatGroup::Matrix;
+    if (m_formatPdf417)
+        mask |= FormatGroup::Pdf417;
+    return mask;
 }

@@ -20,6 +20,13 @@ class Settings : public QObject
     Q_PROPERTY(bool vibrationEnabled READ vibrationEnabled WRITE setVibrationEnabled NOTIFY vibrationEnabledChanged)
     Q_PROPERTY(bool productLookupEnabled READ productLookupEnabled WRITE setProductLookupEnabled NOTIFY productLookupEnabledChanged)
     Q_PROPERTY(bool torchOn READ torchOn WRITE setTorchOn NOTIFY torchOnChanged)
+    // Symbology groups (all ON by default); see formatgroups.h for the bits.
+    Q_PROPERTY(bool formatRetail READ formatRetail WRITE setFormatRetail NOTIFY formatRetailChanged)
+    Q_PROPERTY(bool formatLinear READ formatLinear WRITE setFormatLinear NOTIFY formatLinearChanged)
+    Q_PROPERTY(bool formatMatrix READ formatMatrix WRITE setFormatMatrix NOTIFY formatMatrixChanged)
+    Q_PROPERTY(bool formatPdf417 READ formatPdf417 WRITE setFormatPdf417 NOTIFY formatPdf417Changed)
+    /** The four groups as a FormatGroup bit mask — what the decoder reads. */
+    Q_PROPERTY(quint32 formatMask READ formatMask NOTIFY formatMaskChanged)
 
 public:
     explicit Settings(QObject *parent = nullptr);
@@ -32,12 +39,26 @@ public:
     void setProductLookupEnabled(bool on);
     bool torchOn() const;
     void setTorchOn(bool on);
+    bool formatRetail() const;
+    void setFormatRetail(bool on);
+    bool formatLinear() const;
+    void setFormatLinear(bool on);
+    bool formatMatrix() const;
+    void setFormatMatrix(bool on);
+    bool formatPdf417() const;
+    void setFormatPdf417(bool on);
+    quint32 formatMask() const;
 
 signals:
     void soundEnabledChanged();
     void vibrationEnabledChanged();
     void productLookupEnabledChanged();
     void torchOnChanged();
+    void formatRetailChanged();
+    void formatLinearChanged();
+    void formatMatrixChanged();
+    void formatPdf417Changed();
+    void formatMaskChanged();
 
 private:
     static QString settingsFilePath();
@@ -47,6 +68,10 @@ private:
     bool m_vibrationEnabled;
     bool m_productLookupEnabled;
     bool m_torchOn;
+    bool m_formatRetail;
+    bool m_formatLinear;
+    bool m_formatMatrix;
+    bool m_formatPdf417;
 };
 
 #endif // SETTINGS_H

@@ -111,6 +111,11 @@ int main(int argc, char *argv[])
     TrialManager trial;
     ProductLookup productLookup;
 
+    // Format toggles: the decoder reads the group mask from settings on
+    // every submission (before this it can't decode anything anyway —
+    // nothing is attached until QML asks for a capture).
+    decoder.setSettings(&settings);
+
     QQmlContext *context = view->rootContext();
     context->setContextProperty("decoder", &decoder);
     context->setContextProperty("history", &history);

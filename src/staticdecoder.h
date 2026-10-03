@@ -45,8 +45,10 @@ public:
     /**
      * Hand over an image for decoding in the worker thread. Called from
      * Decoder with the busy flag already held — never re-entrant.
+     * formatMask is a FormatGroup bit set (formatgroups.h): only the
+     * enabled groups' symbologies are offered to zxing. 0 decodes nothing.
      */
-    void submit(const QImage &image);
+    void submit(const QImage &image, quint32 formatMask);
 
 signals:
     /**
@@ -63,6 +65,7 @@ private slots:
 private:
     QThread *m_thread;      // owned; quit+wait'd in the destructor
     QImage m_image;         // written by submit(), read once by decode()
+    quint32 m_formatMask;   // written by submit(), read by decode()
 };
 
 #endif // STATICDECODER_H

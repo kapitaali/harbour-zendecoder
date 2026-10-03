@@ -61,6 +61,7 @@ SOURCES += \
 
 HEADERS += \
     src/decoder.h \
+    src/formatgroups.h \
     src/staticdecoder.h \
     src/history.h \
     src/settings.h \

@@ -19,6 +19,8 @@
  */
 
 #include "decoder.h"
+#include "formatgroups.h"
+#include "settings.h"
 #include "staticdecoder.h"
 
 #include <QtDBus/QDBusConnection>
@@ -113,12 +115,19 @@ Decoder::Decoder(QObject *parent)
     , m_height(0)
     , m_fd(-1)
     , m_static(Q_NULLPTR)
+    , m_settings(Q_NULLPTR)
+    , m_formatMask(FormatGroup::All)
 {
     // No parent: a parented object cannot be moveToThread()'d, so
     // StaticDecoder is owned outright and deleted here first.
     m_static = new StaticDecoder;
     connect(m_static, &StaticDecoder::resultReady,
             this, &Decoder::staticDecodeFinished);
+}
+
+void Decoder::setSettings(Settings *settings)
+{
+    m_settings = settings;
 }
 
 Decoder::~Decoder()
@@ -384,9 +393,16 @@ void Decoder::submitFrame(const QImage &image, bool oneShot)
     }
 
     m_oneShot = oneShot;   // only now: busy held, so this is the live chain
+    m_formatMask = m_settings ? m_settings->formatMask() : FormatGroup::All;
     m_pendingImage = image;
     m_lastSubmit.start();
-    m_static->submit(image);
+
+    // Logged when it isn't the default, or for imports — the live loop's
+    // per-frame line would bury it otherwise.
+    if (m_formatMask != FormatGroup::All || oneShot)
+        std::fprintf(stderr, "[%s] decode submit mask=0x%x oneShot=%d\n",
+                     timestamp(), m_formatMask, oneShot ? 1 : 0);
+    m_static->submit(image, m_formatMask);
 }
 
 void Decoder::staticDecodeFinished(bool found, const QString &text,
@@ -406,6 +422,14 @@ void Decoder::staticDecodeFinished(bool found, const QString &text,
 
     // Static miss → the proven daemon path answers for QR, and the
     // one-shot chain reports notFound() through abortDecode() if it fails.
+    // Gated on the matrix group: the daemon is QR-only and ignores the
+    // settings, so letting it answer when the user turned QR off would
+    // decode exactly what they asked not to.
+    if (!(m_formatMask & FormatGroup::Matrix)) {
+        abortDecode("static miss, QR group disabled");
+        return;
+    }
+
     std::fprintf(stderr, "[%s] static miss (%d ms) -> service fallback\n",
                  timestamp(), elapsedMs);
     std::fflush(stderr);
