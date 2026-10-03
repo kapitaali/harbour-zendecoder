@@ -34,15 +34,31 @@ void ProductLookup::lookup(const QString &barcode)
     req.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
     QNetworkReply *reply = m_net.get(req);
     reply->setProperty("barcode", code);
-    qInfo("product lookup requested: %s", qPrintable(code));
+    qInfo("product lookup requested: %s (ptr=%p)", qPrintable(code),
+          static_cast<void *>(reply));
 }
 
 void ProductLookup::onFinished(QNetworkReply *reply)
 {
     const QString code = reply->property("barcode").toString();
+
+    // Qt 5.6 delivered this slot twice for one request (log: identical
+    // timestamps, same reply). Answer only the first delivery — otherwise
+    // found/notFound reach the UI and history twice.
+    if (reply->property("handled").toBool()) {
+        qInfo("product lookup duplicate finished ignored: %s (ptr=%p)",
+              qPrintable(code), static_cast<void *>(reply));
+        reply->deleteLater();
+        return;
+    }
+    reply->setProperty("handled", true);
+
     const QNetworkReply::NetworkError error = reply->error();
     const QString errorString = reply->errorString();
     const QByteArray body = reply->readAll();
+    qInfo("product lookup finished: %s (ptr=%p) err=%d body=%d bytes",
+          qPrintable(code), static_cast<void *>(reply), int(error),
+          int(body.size()));
     reply->deleteLater();
 
     // Open Food Facts answers an unknown product with HTTP 404 and a real
