@@ -41,7 +41,11 @@ Page {
 
             Label {
                 width: parent.width
-                text: "Version " + appVersion
+                // The real build version, handed over by the RPM build from
+                // the git tag; hand-built binaries report "dev". The build
+                // id (git hash or timestamp) tells test builds apart when
+                // the version hasn't moved.
+                text: "Version " + appVersion + " · build " + buildId
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeSmall
                 horizontalAlignment: Text.AlignHCenter

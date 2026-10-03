@@ -7,6 +7,13 @@ CONFIG += sailfishapp c++11
 # to enforce the 14-day trial + Ko-fi license key.
 DEFINES += PRO_SEED_BUILD
 
+# Build identifier for the About page (lets testers tell a stale binary
+# from a fresh one when the RPM version hasn't moved). Prefers the git
+# hash, falls back to a UTC timestamp outside a repo.
+BUILD_ID = $$system(git -C $$PWD rev-parse --short HEAD 2>/dev/null)
+isEmpty(BUILD_ID): BUILD_ID = $$system(date -u +%Y%m%d-%H%M%S)
+DEFINES += BUILD_ID=\\\"$$BUILD_ID\\\"
+
 # Version shown on the About page: the RPM build exports APP_VERSION (the
 # sfdk/git-tag version) in %build, manual qmake runs may pass it as an
 # argument, and anything else is a hand-built binary.
@@ -14,10 +21,11 @@ isEmpty(APP_VERSION): APP_VERSION = $$getenv(APP_VERSION)
 isEmpty(APP_VERSION): APP_VERSION = dev
 DEFINES += APP_VERSION=\\\"$$APP_VERSION\\\"
 
-# make cannot tell that -DAPP_VERSION changed (compiler flags are invisible
-# to it), so an incremental build would keep the previous version baked into
-# the binary. Bump main()'s timestamp so it recompiles with the current
-# define; it is a single translation unit, so this costs a second at most.
+# make cannot tell that -DAPP_VERSION/-DBUILD_ID changed (compiler flags are
+# invisible to it), so an incremental build would keep the previous values
+# baked into the binary. Bump main()'s timestamp so it recompiles with the
+# current defines; it is a single translation unit, so this costs a second
+# at most.
 _version_touch = $$system(touch $$PWD/src/harbour-zendecoder.cpp)
 
 # Ko-fi shop URL for Pro. Single constant so a Harbour-targeted build can

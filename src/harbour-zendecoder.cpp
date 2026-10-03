@@ -94,8 +94,9 @@ int main(int argc, char *argv[])
     openLogFile();
 
     // Startup marker: attributes everything that follows in a captured log
-    // to this launch (and proves log capture is working at all).
-    qInfo("zendecoder starting");
+    // to this launch (and proves log capture is working at all). The build
+    // id lets testers match a log to the exact binary that wrote it.
+    qInfo("zendecoder starting build %s", BUILD_ID);
 
     QScopedPointer<QGuiApplication> app(SailfishApp::application(argc, argv));
     QScopedPointer<QQuickView> view(SailfishApp::createView());
@@ -117,8 +118,10 @@ int main(int argc, char *argv[])
     context->setContextProperty("trial", &trial);
     context->setContextProperty("productLookup", &productLookup);
     // Build version for the About page (APP_VERSION comes from the .pro,
-    // which gets it from the RPM build environment).
+    // which gets it from the RPM build environment; BUILD_ID is the git
+    // hash or a UTC timestamp, so testers can tell builds apart).
     context->setContextProperty("appVersion", QStringLiteral(APP_VERSION));
+    context->setContextProperty("buildId", QStringLiteral(BUILD_ID));
 
     view->setSource(SailfishApp::pathTo("qml/harbour-zendecoder.qml"));
 
