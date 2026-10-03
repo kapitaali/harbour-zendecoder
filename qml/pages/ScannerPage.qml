@@ -83,6 +83,7 @@ Page {
             var op = scannerPage.galleryOp
             scannerPage.galleryOp = null
             scannerPage.galleryPicker = null
+            decoder.logMessage("galleryOp delivering, hasEntry=" + (op.entry !== null))
             if (op.entry) {
                 pageStack.push(Qt.resolvedUrl("ResultPage.qml"),
                                { entry: op.entry })
@@ -244,7 +245,9 @@ Page {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "Import from gallery"
                 onClicked: {
-                    scannerPage.galleryPicker = pageStack.push(imagePickerPage)
+                    var pg = pageStack.push(imagePickerPage)
+                    scannerPage.galleryPicker = pg
+                    decoder.logMessage("import opened, picker null=" + (pg === null))
                 }
             }
             Button {
@@ -278,6 +281,8 @@ Page {
     Connections {
         target: decoder
         onDecoded: {
+            decoder.logMessage("signal decoded, status=" + scannerPage.status
+                               + " pickerNull=" + (scannerPage.galleryPicker === null))
             if (scannerPage.status === PageStatus.Active && !scannerPage.succeeded) {
                 scannerPage.succeed(text, format)
             } else if (scannerPage.galleryPicker !== null) {
@@ -285,9 +290,13 @@ Page {
                 // (direct navigation races the picker's transitions).
                 var id = history.addScan(format, text)
                 scannerPage.galleryOp = { entry: { scanId: id, format: format, value: text } }
+            } else {
+                decoder.logMessage("decoded dropped: inactive and no picker session")
             }
         }
         onNotFound: {
+            decoder.logMessage("signal notFound, status=" + scannerPage.status
+                               + " pickerNull=" + (scannerPage.galleryPicker === null))
             if (scannerPage.galleryPicker !== null) {
                 scannerPage.galleryOp = { entry: null }
             } else {
