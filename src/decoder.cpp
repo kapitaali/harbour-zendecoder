@@ -394,8 +394,7 @@ void Decoder::staticDecodeFinished(bool found, const QString &text,
 {
     if (found) {
         m_busy.storeRelease(0);
-        const bool oneShot = m_oneShot;
-        m_oneShot = false;
+        m_oneShot = false;      // consumed: the import delivered its result
         m_pendingImage = QImage();
         std::fprintf(stderr, "[%s] static decoded (%s, %d ms): %s\n", timestamp(),
                      qPrintable(format), elapsedMs, qPrintable(text));
