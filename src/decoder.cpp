@@ -137,7 +137,37 @@ void Decoder::setApplicationActive(bool active)
         return;
     m_appActive = active;
     qInfo("application %s", active ? "active" : "inactive");
+    // Emit first: QML stops the capture loop and calls camera.stop(), and
+    // everything we release below must happen AFTER that — QCamera::stop()
+    // moves the camera back to the loaded state, undoing an unload().
     emit applicationActiveChanged(active);
+    if (!active) {
+        releaseCamera("focus lost");
+        // A capture already in flight completes ~1 s later and makes
+        // camerabin restart the preview on top of us; re-check then.
+        QTimer::singleShot(1500, this, [this]() {
+            if (!m_appActive)
+                releaseCamera("still inactive (re-check)");
+        });
+    }
+}
+
+void Decoder::releaseCamera(const char *why)
+{
+    QObject *media = m_camera ? m_camera->property("mediaObject").value<QObject *>()
+                              : nullptr;
+    QCamera *qcam = qobject_cast<QCamera *>(media);
+    if (!qcam) {
+        static int logged = 0;
+        if (logged++ < 3)
+            std::fprintf(stderr, "[%s] release camera: no QCamera (%s)\n",
+                         timestamp(), why);
+        return;
+    }
+    const int before = int(qcam->status());
+    qcam->unload();
+    qInfo("camera released (%s): status %d -> %d", why, before,
+          int(qcam->status()));
 }
 
 Decoder::~Decoder()
@@ -214,6 +244,8 @@ void Decoder::logReady(bool ready)
 
 bool Decoder::requestCapture()
 {
+    if (!m_appActive)
+        return false;               // backgrounded: never pull new frames
     QObject *capture = m_captureGroup.data();
     if (!capture || m_scanFilePath.isEmpty())
         return false;
@@ -313,6 +345,11 @@ bool Decoder::configureResolution(QObject *capture)
 
 void Decoder::submitImageFile(const QString &fileName)
 {
+    // A capture that was already on its way when focus was lost arrives
+    // here after camerabin has resumed the preview — let go again before
+    // decoding (the decode itself only needs the file).
+    if (!m_appActive)
+        releaseCamera("capture completed while inactive");
     loadFile(fileName, true, false);     // live loop: empties stay silent
 }
 

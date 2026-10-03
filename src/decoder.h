@@ -155,6 +155,16 @@ private:
      * once the busy flag is held so a dropped frame can't leave it set.
      */
     void submitFrame(const QImage &image, bool oneShot);
+    /**
+     * Fully let go of the camera hardware: stop() only drops to the loaded
+     * state (session, HAL buffers and preview streaming stay alive), so
+     * this unloads the QCamera behind the QML object. Called when the app
+     * loses focus, again when a capture was already in flight, and from a
+     * delayed re-check — camerabin restarts the preview when an in-flight
+     * capture completes, which would otherwise keep the system's
+     * camerahalserver burning CPU behind the cover.
+     */
+    void releaseCamera(const char *why);
     /** Static miss → pack m_pendingImage as ARGB32 for the daemon. */
     bool packPixels();
     /**
