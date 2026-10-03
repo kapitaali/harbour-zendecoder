@@ -56,23 +56,41 @@ Page {
 
     // Gallery one-shot results arrive asynchronously: usually while the
     // file picker is popping itself closed (status Activating) or just
-    // after. Navigating immediately races those transitions ("cannot
-    // pop/push while transition is in progress"), so results wait in
-    // pendingGalleryOp and are delivered from onStatusChanged the moment
-    // this page is Active again — Active means the stack has settled, so
-    // push/toast are always safe. No timers, no session handles.
+    // after. Results wait in pendingGalleryOp; a settle-timer delivers
+    // them once this page is Active, the stack is not mid-transition and
+    // we are still the current page. (Delivering straight from
+    // onStatusChanged re-entered Silica's status bookkeeping mid-update —
+    // "Binding loop detected for property status" — and the toast never
+    // appeared; the timer retries every 250 ms until the op is consumed,
+    // and never pops anything, so it cannot eat pages the user opened.)
     property var pendingGalleryOp: null
 
     function deliverGalleryOp() {
         var op = pendingGalleryOp
-        pendingGalleryOp = null
         if (op === null || op === undefined)
             return
-        if (op.entry !== null && op.entry !== undefined) {
+        pendingGalleryOp = null
+        var hasEntry = (op.entry !== null && op.entry !== undefined)
+        decoder.logMessage("deliver gallery op, hasEntry=" + hasEntry)
+        if (hasEntry) {
             pageStack.push(Qt.resolvedUrl("ResultPage.qml"),
                            { entry: op.entry })
         } else {
             toast.show("No code found in that image")
+        }
+    }
+
+    Timer {
+        id: galleryDeliverTimer
+        interval: 250
+        repeat: true
+        running: scannerPage.pendingGalleryOp !== null
+        onTriggered: {
+            if (scannerPage.status === PageStatus.Active
+                    && pageStack.currentPage === scannerPage
+                    && !pageStack.busy) {
+                scannerPage.deliverGalleryOp()
+            }
         }
     }
 
@@ -152,9 +170,10 @@ Page {
         if (status === PageStatus.Active) {
             captureFailures = 0
             camera.start()
-            // A gallery result may have arrived while the picker was
-            // closing: the stack is settled now, deliver it.
-            deliverGalleryOp()
+            // NOTE: gallery results are NOT delivered here — pushing a
+            // page while Silica is still updating status causes the
+            // binding-loop warning and a swallowed toast. The settle-timer
+            // above handles delivery once everything is quiet.
         } else if (status === PageStatus.Inactive && !succeeded) {
             camera.stop()
         }

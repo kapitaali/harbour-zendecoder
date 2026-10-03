@@ -15,6 +15,10 @@ Rectangle {
     property string message: ""
 
     function show(text) {
+        // Breadcrumb: the scanner page logs *delivering* the op, but only
+        // this line proves the toast itself ran (and with what text).
+        if (typeof decoder !== "undefined")
+            decoder.logMessage("toast show: " + text)
         toast.message = text
         timer.restart()
     }
