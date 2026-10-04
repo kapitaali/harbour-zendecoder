@@ -46,8 +46,11 @@ DEFINES += KOFI_URL=\\\"$$KOFI_URL\\\"
 # Qt 5.6 headers.
 QT += core gui qml quick sql multimedia dbus
 
-# Vendored zxing-cpp v3.0.2 (Apache-2.0) — readers-only static build, all
-# symbologies. See 3rdparty/zxing-cpp/zxing-cpp.pri for the file list.
+# libomniscan v0.2.0 (Apache-2.0) with its vendored zxing-cpp v2.3.0
+# backend (3rdparty/omniscan + 3rdparty/zxing-cpp) — compiled into the
+# binary, single RPM, no extra dependency. See 3rdparty/omniscan/omniscan.pri
+# and 3rdparty/zxing-cpp/zxing-cpp.pri for the file lists.
+include(3rdparty/omniscan/omniscan.pri)
 include(3rdparty/zxing-cpp/zxing-cpp.pri)
 
 SOURCES += \

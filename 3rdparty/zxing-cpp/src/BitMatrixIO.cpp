@@ -56,9 +56,10 @@ std::string ToSVG(const BitMatrix& matrix)
 	const int height = matrix.height();
 	std::ostringstream out;
 
-	out << R"(<?xml version="1.0" encoding="UTF-8"?>)" << "\n"
-		<< R"(<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 )" << width << ' ' << height << R"(" stroke="none">)"
-		<< "\n<path d=\"";
+	out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+		<< "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" viewBox=\"0 0 " << width << " " << height
+		<< "\" stroke=\"none\">\n"
+		<< "<path d=\"";
 
 	for (int y = 0; y < height; ++y)
 		for (int x = 0; x < width; ++x)
@@ -90,7 +91,7 @@ BitMatrix ParseBitMatrix(const std::string& str, char one, bool expectSpace)
 	return mat;
 }
 
-void SaveAsPBM(const BitMatrix& matrix, const std::string& filename, int quietZone)
+void SaveAsPBM(const BitMatrix& matrix, const std::string filename, int quietZone)
 {
 	auto out = ToMatrix<uint8_t>(Inflate(matrix.copy(), 0, 0, quietZone));
 	std::ofstream file(filename);

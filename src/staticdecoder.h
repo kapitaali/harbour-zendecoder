@@ -1,10 +1,10 @@
 /*
  * Static barcode decoding on a worker thread.
  *
- * The vendored zxing-cpp (3rdparty/, readers-only static build, all
- * symbologies) runs here instead of on the UI thread: a 2560-px gallery
- * import would otherwise stall the viewfinder, and the live capture loop
- * would drop its cadence. One decode at a time — Decoder holds its busy
+ * libomniscan (3rdparty/omniscan, backend ON: native Tier-2 codecs plus its
+ * vendored zxing-cpp 2.3.0 for Grade-1) runs here instead of on the UI
+ * thread: a 2560-px gallery import would otherwise stall the viewfinder,
+ * and the live capture loop would drop its cadence. One decode at a time — Decoder holds its busy
  * flag across the whole static-then-daemon chain, so submit() is never
  * called while a previous decode is still running.
  *
@@ -46,20 +46,21 @@ public:
      * Hand over an image for decoding in the worker thread. Called from
      * Decoder with the busy flag already held — never re-entrant.
      * formatMask is a FormatGroup bit set (formatgroups.h): only the
-     * enabled groups' symbologies are offered to zxing. 0 decodes nothing.
+     * enabled groups' symbologies are offered to libomniscan. 0 decodes
+     * nothing.
      */
     void submit(const QImage &image, quint32 formatMask);
 
 signals:
     /**
-     * Exactly one per submit(). elapsedMs measures the zxing call alone
+     * Exactly one per submit(). elapsedMs measures the decode call alone
      * (grayscale conversion included, thread hop excluded).
      */
     void resultReady(bool found, const QString &text, const QString &format,
                      int elapsedMs);
 
 private slots:
-    /** Worker thread: grayscale-convert, run zxing, emit resultReady. */
+    /** Worker thread: grayscale-convert, run libomniscan, emit resultReady. */
     void decode();
 
 private:

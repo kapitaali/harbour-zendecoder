@@ -63,7 +63,7 @@ void BinaryBitmap::invert()
 		auto matrix = const_cast<BitMatrix*>(_cache->matrix.get());
 		matrix->flipAll();
 	}
-	_inverted = !_inverted;
+	_inverted = true;
 }
 
 template <typename F>

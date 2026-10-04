@@ -20,7 +20,7 @@ namespace DataMatrix {
 class Writer
 {
 public:
-	Writer() = default;
+	Writer();
 
 	Writer& setMargin(int margin) {
 		_quietZone = margin;
@@ -53,9 +53,9 @@ public:
 	BitMatrix encode(const std::string& contents, int width, int height) const;
 
 private:
-	SymbolShape _shapeHint = SymbolShape::NONE;
+	SymbolShape _shapeHint;
 	int _quietZone = 1, _minWidth = -1, _minHeight = -1, _maxWidth = -1, _maxHeight = -1;
-	CharacterSet _encoding = CharacterSet::Unknown;
+	CharacterSet _encoding;
 };
 
 } // DataMatrix

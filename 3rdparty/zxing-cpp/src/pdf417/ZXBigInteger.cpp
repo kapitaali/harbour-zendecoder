@@ -5,6 +5,7 @@
 
 #include "ZXBigInteger.h"
 
+#include "BitHacks.h"
 #include "ZXAlgorithms.h"
 
 #include <algorithm>
@@ -18,7 +19,7 @@ namespace ZXing {
 using Block = BigInteger::Block;
 using Magnitude = std::vector<Block>;
 
-constexpr size_t NB_BITS = 8 * sizeof(Block);
+static const size_t NB_BITS = 8 * sizeof(Block);
 
 static void AddMag(const Magnitude& a, const Magnitude& b, Magnitude& c)
 {
@@ -584,9 +585,9 @@ BigInteger::toString() const
 		result.push_back('-');
 	}
 
-	constexpr uint32_t base = 10;
-	constexpr uint32_t minBitsPerDigit = 4; // HighestBitSet(base)
+	static const uint32_t base = 10;
 	auto maxBitLenOfX = static_cast<uint32_t>(mag.size()) * NB_BITS;
+	int minBitsPerDigit = BitHacks::HighestBitSet(base);
 	auto maxDigitLenOfX = (maxBitLenOfX + minBitsPerDigit - 1) / minBitsPerDigit; // ceilingDiv
 	
 	std::vector<uint8_t> buffer;

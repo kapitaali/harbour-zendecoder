@@ -8,7 +8,6 @@
 
 #include "BitMatrix.h"
 #include "Pattern.h"
-#include "ZXConfig.h"
 
 #include <algorithm>
 #include <array>
@@ -116,7 +115,7 @@ bool GlobalHistogramBinarizer::getPatternRow(int row, int rotation, PatternRow& 
 	// during the histogram calculation and during the sharpen+threshold operation. Additionally, if we
 	// perform the ThresholdSharpened function on pixStride==1 data, the auto-vectorizer makes that part
 	// 8x faster on an AVX2 cpu which easily recovers the extra cost that we pay for the copying.
-	ZX_THREAD_LOCAL std::vector<uint8_t> line;
+	thread_local std::vector<uint8_t> line;
 	if (std::abs(buffer.pixStride()) > 4) {
 		line.resize(lineView.size());
 		std::copy(lineView.begin(), lineView.end(), line.begin());
@@ -128,7 +127,7 @@ bool GlobalHistogramBinarizer::getPatternRow(int row, int rotation, PatternRow& 
 	if (threshold <= 0)
 		return false;
 
-	ZX_THREAD_LOCAL std::vector<uint8_t> binarized;
+	thread_local std::vector<uint8_t> binarized;
 	// the optimizer can generate a specialized version for pixStride==1 (non-rotated input) that is about 8x faster on AVX2 hardware
 	if (lineView.begin().stride == 1)
 		ThresholdSharpened(lineView, threshold, binarized);

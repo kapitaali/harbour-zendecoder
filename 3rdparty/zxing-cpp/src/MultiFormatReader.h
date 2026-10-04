@@ -24,7 +24,10 @@ public:
 	explicit MultiFormatReader(ReaderOptions&& opts) = delete;
 	~MultiFormatReader();
 
-	Barcodes read(const BinaryBitmap& image, int maxSymbols = 0xFF) const;
+	Barcode read(const BinaryBitmap& image) const;
+
+	// WARNING: this API is experimental and may change/disappear
+	Barcodes readMultiple(const BinaryBitmap& image, int maxSymbols = 0xFF) const;
 
 private:
 	std::vector<std::unique_ptr<Reader>> _readers;

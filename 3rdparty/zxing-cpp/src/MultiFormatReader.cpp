@@ -8,28 +8,13 @@
 
 #include "BarcodeFormat.h"
 #include "BinaryBitmap.h"
-#include "Reader.h"
 #include "ReaderOptions.h"
-#include "Version.h"
-
-#if ZXING_ENABLE_AZTEC
 #include "aztec/AZReader.h"
-#endif
-#if ZXING_ENABLE_DATAMATRIX
 #include "datamatrix/DMReader.h"
-#endif
-#if ZXING_ENABLE_MAXICODE
 #include "maxicode/MCReader.h"
-#endif
-#if ZXING_ENABLE_1D
 #include "oned/ODReader.h"
-#endif
-#if ZXING_ENABLE_PDF417
 #include "pdf417/PDFReader.h"
-#endif
-#if ZXING_ENABLE_QRCODE
 #include "qrcode/QRReader.h"
-#endif
 
 #include <memory>
 
@@ -37,54 +22,57 @@ namespace ZXing {
 
 MultiFormatReader::MultiFormatReader(const ReaderOptions& opts) : _opts(opts)
 {
-	using enum BarcodeFormat;
+	auto formats = opts.formats().empty() ? BarcodeFormat::Any : opts.formats();
 
 	// Put linear readers upfront in "normal" mode
-#if ZXING_ENABLE_1D
-	if (!opts.tryHarder() && opts.hasAnyFormat(AllLinear))
+	if (formats.testFlags(BarcodeFormat::LinearCodes) && !opts.tryHarder())
 		_readers.emplace_back(new OneD::Reader(opts));
-#endif
 
-#if ZXING_ENABLE_QRCODE
-	if (opts.hasAnyFormat(QRCode))
+	if (formats.testFlags(BarcodeFormat::QRCode | BarcodeFormat::MicroQRCode | BarcodeFormat::RMQRCode))
 		_readers.emplace_back(new QRCode::Reader(opts, true));
-#endif
-#if ZXING_ENABLE_DATAMATRIX
-	if (opts.hasAnyFormat(DataMatrix))
+	if (formats.testFlag(BarcodeFormat::DataMatrix))
 		_readers.emplace_back(new DataMatrix::Reader(opts, true));
-#endif
-#if ZXING_ENABLE_AZTEC
-	if (opts.hasAnyFormat(Aztec))
+	if (formats.testFlag(BarcodeFormat::Aztec))
 		_readers.emplace_back(new Aztec::Reader(opts, true));
-#endif
-#if ZXING_ENABLE_PDF417
-	if (opts.hasAnyFormat(PDF417))
+	if (formats.testFlag(BarcodeFormat::PDF417))
 		_readers.emplace_back(new Pdf417::Reader(opts));
-#endif
-#if ZXING_ENABLE_MAXICODE
-	if (opts.hasAnyFormat(MaxiCode))
+	if (formats.testFlag(BarcodeFormat::MaxiCode))
 		_readers.emplace_back(new MaxiCode::Reader(opts));
-#endif
 
 	// At end in "try harder" mode
-#if ZXING_ENABLE_1D
-	if (opts.tryHarder() && opts.hasAnyFormat(AllLinear))
+	if (formats.testFlags(BarcodeFormat::LinearCodes) && opts.tryHarder())
 		_readers.emplace_back(new OneD::Reader(opts));
-#endif
 }
 
 MultiFormatReader::~MultiFormatReader() = default;
 
-Barcodes MultiFormatReader::read(const BinaryBitmap& image, int maxSymbols) const
+Barcode MultiFormatReader::read(const BinaryBitmap& image) const
+{
+	Barcode r;
+	for (const auto& reader : _readers) {
+		r = reader->decode(image);
+  		if (r.isValid())
+			return r;
+	}
+	return _opts.returnErrors() ? r : Barcode();
+}
+
+Barcodes MultiFormatReader::readMultiple(const BinaryBitmap& image, int maxSymbols) const
 {
 	Barcodes res;
 
 	for (const auto& reader : _readers) {
 		if (image.inverted() && !reader->supportsInversion)
 			continue;
-		auto r = reader->read(image, maxSymbols);
-		if (!_opts.returnErrors())
+		auto r = reader->decode(image, maxSymbols);
+		if (!_opts.returnErrors()) {
+#ifdef __cpp_lib_erase_if
 			std::erase_if(r, [](auto&& s) { return !s.isValid(); });
+#else
+			auto it = std::remove_if(r.begin(), r.end(), [](auto&& s) { return !s.isValid(); });
+			r.erase(it, r.end());
+#endif
+		}
 		maxSymbols -= Size(r);
 		res.insert(res.end(), std::move_iterator(r.begin()), std::move_iterator(r.end()));
 		if (maxSymbols <= 0)

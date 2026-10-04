@@ -13,13 +13,31 @@
 #include "BinaryBitmap.h"
 #include "ReaderOptions.h"
 #include "DecoderResult.h"
-#include "BarcodeData.h"
+#include "Barcode.h"
 
 #include <utility>
 
 namespace ZXing::Aztec {
 
-BarcodesData Reader::read(const BinaryBitmap& image, int maxSymbols) const
+Barcode Reader::decode(const BinaryBitmap& image) const
+{
+	auto binImg = image.getBitMatrix();
+	if (binImg == nullptr)
+		return {};
+	
+	DetectorResult detectorResult = Detect(*binImg, _opts.isPure(), _opts.tryHarder());
+	if (!detectorResult.isValid())
+		return {};
+
+	auto decodeResult = Decode(detectorResult)
+							.setReaderInit(detectorResult.readerInit())
+							.setIsMirrored(detectorResult.isMirrored())
+							.setVersionNumber(detectorResult.nbLayers());
+
+	return Barcode(std::move(decodeResult), std::move(detectorResult), BarcodeFormat::Aztec);
+}
+
+Barcodes Reader::decode(const BinaryBitmap& image, int maxSymbols) const
 {
 	auto binImg = image.getBitMatrix();
 	if (binImg == nullptr)
@@ -27,18 +45,18 @@ BarcodesData Reader::read(const BinaryBitmap& image, int maxSymbols) const
 	
 	auto detRess = Detect(*binImg, _opts.isPure(), _opts.tryHarder(), maxSymbols);
 
-	BarcodesData res;
+	Barcodes baracodes;
 	for (auto&& detRes : detRess) {
 		auto decRes =
 			Decode(detRes).setReaderInit(detRes.readerInit()).setIsMirrored(detRes.isMirrored()).setVersionNumber(detRes.nbLayers());
 		if (decRes.isValid(_opts.returnErrors())) {
-			res.emplace_back(MatrixBarcode(std::move(decRes), std::move(detRes), BarcodeFormat::Aztec));
-			if (maxSymbols > 0 && Size(res) >= maxSymbols)
+			baracodes.emplace_back(std::move(decRes), std::move(detRes), BarcodeFormat::Aztec);
+			if (maxSymbols > 0 && Size(baracodes) >= maxSymbols)
 				break;
 		}
 	}
 
-	return res;
+	return baracodes;
 }
 
 } // namespace ZXing::Aztec

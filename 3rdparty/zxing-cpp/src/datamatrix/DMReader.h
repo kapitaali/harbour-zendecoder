@@ -15,7 +15,10 @@ class Reader : public ZXing::Reader
 public:
 	using ZXing::Reader::Reader;
 
-	BarcodesData read(const BinaryBitmap& image, int maxSymbols) const override;
+	Barcode decode(const BinaryBitmap& image) const override;
+#ifdef __cpp_impl_coroutine
+	Barcodes decode(const BinaryBitmap& image, int maxSymbols) const override;
+#endif
 };
 
 } // namespace ZXing::DataMatrix

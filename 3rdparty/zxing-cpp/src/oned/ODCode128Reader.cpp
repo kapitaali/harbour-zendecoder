@@ -7,10 +7,7 @@
 #include "ODCode128Reader.h"
 
 #include "ODCode128Patterns.h"
-#include "BarcodeData.h"
-#include "ByteArray.h"
-#include "JSON.h"
-#include "SymbologyIdentifier.h"
+#include "Barcode.h"
 #include "ZXAlgorithms.h"
 
 #include <array>
@@ -178,7 +175,7 @@ static auto E2E_PATTERNS = [] {
 	return res;
 }();
 
-BarcodeData Code128Reader::decodePattern(int rowNumber, PatternView& next, std::unique_ptr<DecodingState>&) const
+Barcode Code128Reader::decodePattern(int rowNumber, PatternView& next, std::unique_ptr<DecodingState>&) const
 {
 	int minCharCount = 4; // start + payload + checksum + stop
 	auto decodePattern = [](const PatternView& view, bool start = false) {
@@ -241,8 +238,8 @@ BarcodeData Code128Reader::decodePattern(int rowNumber, PatternView& next, std::
 		error = ChecksumError();
 
 	int xStop = next.pixelsTillEnd();
-	return LinearBarcode(BarcodeFormat::Code128, raw2txt.text(), rowNumber, xStart, xStop, raw2txt.symbologyIdentifier(), error,
-				   JsonProp(BarcodeExtra::ReaderInit, raw2txt.readerInit()));
+	return Barcode(raw2txt.text(), rowNumber, xStart, xStop, BarcodeFormat::Code128, raw2txt.symbologyIdentifier(), error,
+				   raw2txt.readerInit());
 }
 
 } // namespace ZXing::OneD

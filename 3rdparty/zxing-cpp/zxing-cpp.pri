@@ -1,17 +1,25 @@
-# zxing-cpp v3.0.2 — vendored static, readers-only, all symbologies.
-# Source: https://github.com/zxing-cpp/zxing-cpp (Apache-2.0, see LICENSE).
-# File list parsed from core/CMakeLists.txt with ZXING_READERS=ON,
-# ZXING_WRITERS=OFF; symbology flags come from include/Version.h.
-# Regenerate when bumping the version (drop every file whose CMake block
-# mentions WRITERS without READERS).
+# zxing-cpp v2.3.0 — vendored static, readers-only.
+# Source: https://github.com/zxing-cpp/zxing-cpp tag v2.3.0
+# (commit d6068bcebeb8fd9f0d35a99b00d202be86a14dbe, Apache-2.0, see LICENSE;
+#  libzueci is BSD-3-Clause, SPDX tag in each file).
+# File list parsed from core/CMakeLists.txt with ZXING_READERS=ON and all
+# ZXING_WRITERS*=OFF: every set(*_FILES) block whose guard is true,
+# .cpp/.c only. WriteBarcode.cpp is in upstream's unconditional COMMON set
+# (its body is #ifdef ZXING_WRITERS-guarded, so it compiles to ~empty here).
+# libzint/ (NEW-writers backend) is not vendored. Regenerate on bump with
+# the same rule; include/Version.h is rendered from core/Version.h.in
+# (PROJECT_VERSION 2.3.0, readers only).
 
 ZXING_ROOT = $$PWD
 
-INCLUDEPATH += $$ZXING_ROOT/include $$ZXING_ROOT/src
+INCLUDEPATH += $$ZXING_ROOT/src $$ZXING_ROOT/include
 
-# Upstream's ZXING_PRIVATE_FLAGS (core/CMakeLists.txt): ZXING_INTERNAL gates
-# Range-based row()/col() access; ZUECI_EMBED_NO_TO_ECI drops zueci's ECI
-# writer tables since ZXING_WRITERS is off.
+# ZXING_READERS comes from include/Version.h (rendered from
+# core/Version.h.in). Upstream ZXING_PRIVATE_FLAGS for a readers-only
+# build: ZXING_INTERNAL gates internal row()/col() access;
+# ZUECI_EMBED_NO_TO_ECI drops zueci's ECI writer tables (upstream sets
+# it per-file on zueci.c when writers are off — global here, only
+# zueci.c reads it).
 DEFINES += ZXING_INTERNAL ZUECI_EMBED_NO_TO_ECI
 
 SOURCES += \
@@ -25,7 +33,7 @@ SOURCES += \
     $$ZXING_ROOT/src/CharacterSet.cpp \
     $$ZXING_ROOT/src/ConcentricFinder.cpp \
     $$ZXING_ROOT/src/Content.cpp \
-    $$ZXING_ROOT/src/CreateBarcode.cpp \
+    $$ZXING_ROOT/src/DecodeHints.cpp \
     $$ZXING_ROOT/src/ECI.cpp \
     $$ZXING_ROOT/src/Error.cpp \
     $$ZXING_ROOT/src/GTIN.cpp \
@@ -35,13 +43,13 @@ SOURCES += \
     $$ZXING_ROOT/src/GridSampler.cpp \
     $$ZXING_ROOT/src/HRI.cpp \
     $$ZXING_ROOT/src/HybridBinarizer.cpp \
-    $$ZXING_ROOT/src/JSON.cpp \
     $$ZXING_ROOT/src/MultiFormatReader.cpp \
     $$ZXING_ROOT/src/PerspectiveTransform.cpp \
     $$ZXING_ROOT/src/ReadBarcode.cpp \
     $$ZXING_ROOT/src/ReedSolomonDecoder.cpp \
     $$ZXING_ROOT/src/ResultPoint.cpp \
     $$ZXING_ROOT/src/TextDecoder.cpp \
+    $$ZXING_ROOT/src/TextUtfEncoding.cpp \
     $$ZXING_ROOT/src/Utf.cpp \
     $$ZXING_ROOT/src/WhiteRectDetector.cpp \
     $$ZXING_ROOT/src/WriteBarcode.cpp \
@@ -95,7 +103,4 @@ SOURCES += \
     $$ZXING_ROOT/src/qrcode/QRErrorCorrectionLevel.cpp \
     $$ZXING_ROOT/src/qrcode/QRFormatInformation.cpp \
     $$ZXING_ROOT/src/qrcode/QRReader.cpp \
-    $$ZXING_ROOT/src/qrcode/QRVersion.cpp \
-
-HEADERS += \
-    $$ZXING_ROOT/include/Version.h
+    $$ZXING_ROOT/src/qrcode/QRVersion.cpp

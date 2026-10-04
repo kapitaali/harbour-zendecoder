@@ -1,11 +1,13 @@
 /*
  * Static barcode decoding — see staticdecoder.h for the threading design.
  *
- * The decode itself mirrors the host proof (/tmp/opencode/hosttest): a
- * grayscale ImageView over the QImage's bytes fed to ReadBarcode with
- * all symbologies on, tryHarder and tryDownscale at their defaults'
- * strength. Grayscale conversion happens here, off the UI thread, and the
- * result is reported back on the Decoder's thread by a queued signal.
+ * The decode itself runs libomniscan (3rdparty/omniscan, backend ON, so
+ * Grade-1 formats go through its vendored zxing-cpp 2.3.0 and the native
+ * Tier-2 codecs answer directly): a grayscale ImageView over the QImage's
+ * bytes fed to decode_into with the format-group mask, default settings
+ * first, escalated to try_harder on a miss only. Grayscale conversion
+ * happens here, off the UI thread, and the result is reported back on the
+ * Decoder's thread by a queued signal.
  *
  * Diagnostics go to stderr with fprintf (same reason as decoder.cpp:
  * qWarning lands in the journal the app cannot read back). Every gallery
@@ -14,54 +16,94 @@
  */
 #include "staticdecoder.h"
 
-#include "Barcode.h"
-#include "BarcodeFormat.h"
-#include "ImageView.h"
-#include "ReadBarcode.h"
-#include "ReaderOptions.h"
 #include "formatgroups.h"
+
+#include <omniscan/omniscan.h>
 
 #include <QElapsedTimer>
 #include <QThread>
 
 #include <cstdio>
 #include <initializer_list>
-#include <utility>
 #include <vector>
 
 namespace {
 
 /**
- * Map the FormatGroup bits to zxing's format enum. Group membership is
- * deliberately generous: every readable variant of a symbology belongs to
- * its group (Code39Std/Ext with Code39, the DataBar flavours together),
- * because the reader filters by "any intersection" — leaving a variant out
- * would silently stop it from ever matching.
+ * Map the FormatGroup bits to libomniscan's symbology mask. Group
+ * membership is deliberately generous: every readable variant of a
+ * symbology belongs to its group, because the dispatcher filters by
+ * intersection — leaving a variant out would silently stop it from ever
+ * matching. Postal codes have no settings group of their own; they are
+ * linear barcodes, so they ride with the "other 1D" group.
+ *
+ * Deliberately NOT enabled: SwissQR (a QR payload schema — enabling its
+ * bit would relabel Swiss-bill QR reads instead of decoding anything new).
  */
-std::vector<ZXing::BarcodeFormat> selectedFormats(quint32 mask)
+omniscan::SymMask selectedSymbologies(quint32 mask)
 {
-    using F = ZXing::BarcodeFormat;
-    std::vector<F> out;
+    using S = omniscan::Symbology;
+    using omniscan::symbology_bit;
+    omniscan::SymMask out = 0;
     const auto add = [&out, mask](quint32 group,
-                                  std::initializer_list<F> formats) {
+                                  std::initializer_list<S> syms) {
         if (mask & group)
-            out.insert(out.end(), formats.begin(), formats.end());
+            for (S s : syms)
+                out |= symbology_bit(s);
     };
 
     add(FormatGroup::Retail,
-        {F::EAN13, F::EAN8, F::UPCA, F::UPCE, F::ISBN, F::EAN2, F::EAN5,
-         F::ITF, F::ITF14});
+        {S::EAN13, S::EAN8, S::UPCA, S::UPCE, S::ITF});
     add(FormatGroup::Linear,
-        {F::Code39, F::Code39Std, F::Code39Ext, F::Code32, F::PZN, F::Code93,
-         F::Code128, F::Codabar, F::DataBar, F::DataBarOmni, F::DataBarStk,
-         F::DataBarStkOmni, F::DataBarLtd, F::DataBarExp, F::DataBarExpStk,
-         F::DXFilmEdge});
+        {S::Code39, S::Code93, S::Code128, S::Codabar, S::DataBar,
+         S::DataBarExpanded, S::MSI, S::Plessey, S::Telepen, S::Pharmacode,
+         S::USPSIMb, S::RM4SCC, S::AustraliaPost, S::JapanPost,
+         S::DeutschePost, S::KIX});
     add(FormatGroup::Matrix,
-        {F::QRCode, F::QRCodeModel1, F::QRCodeModel2, F::MicroQRCode,
-         F::RMQRCode, F::Aztec, F::AztecCode, F::AztecRune, F::DataMatrix,
-         F::MaxiCode});
-    add(FormatGroup::Pdf417, {F::PDF417, F::CompactPDF417, F::MicroPDF417});
+        {S::QRCode, S::MicroQRCode, S::RmQR, S::DataMatrix, S::Aztec,
+         S::MaxiCode});
+    add(FormatGroup::Pdf417, {S::PDF417});
     return out;
+}
+
+/**
+ * Display/store labels. Identical to the old zxing ToString() names for
+ * every symbology the app showed before the libomniscan migration, so
+ * history entries keep their labels; native-only formats (no old
+ * equivalent) keep their lib names. Any rename is documented here, not
+ * silent: ISBN/EAN-2/5 addons, Code 39 Std/Ext, Code 32, PZN, ITF-14 and
+ * the DataBar/Aztec/QR/PDF417 sub-variants no longer exist as separate
+ * zxing 2.3.0 results — they read as their base symbology with identical
+ * text (verified on fixtures; MicroPDF417, DataBar Limited and DX Film
+ * Edge have no 2.3.0 reader mapping yet — reported, not renamed).
+ */
+QString appLabel(omniscan::Symbology s)
+{
+    using S = omniscan::Symbology;
+    switch (s) {
+    case S::QRCode: return QStringLiteral("QR Code");
+    case S::MicroQRCode: return QStringLiteral("Micro QR Code");
+    case S::RmQR: return QStringLiteral("rMQR Code");
+    case S::DataMatrix: return QStringLiteral("Data Matrix");
+    case S::Aztec: return QStringLiteral("Aztec");
+    case S::PDF417: return QStringLiteral("PDF417");
+    case S::Code128: return QStringLiteral("Code 128");
+    case S::Code39: return QStringLiteral("Code 39");
+    case S::Code93: return QStringLiteral("Code 93");
+    case S::Codabar: return QStringLiteral("Codabar");
+    case S::ITF: return QStringLiteral("ITF");
+    case S::UPCA: return QStringLiteral("UPC-A");
+    case S::UPCE: return QStringLiteral("UPC-E");
+    case S::EAN8: return QStringLiteral("EAN-8");
+    case S::EAN13: return QStringLiteral("EAN-13");
+    case S::DataBar: return QStringLiteral("DataBar");
+    case S::DataBarExpanded: return QStringLiteral("DataBar Expanded");
+    case S::MaxiCode: return QStringLiteral("MaxiCode");
+    default: break;
+    }
+    // Native-only symbologies (MSI, KIX, ...) and anything unexpected:
+    // the lib's own stable name.
+    return QString::fromLatin1(omniscan::to_string(s));
 }
 
 } // namespace
@@ -109,47 +151,45 @@ void StaticDecoder::decode()
     QString format;
     int elapsedMs = 0;
 
-    if (!image.isNull() && mask != 0) {
+    const omniscan::SymMask syms = (mask == 0) ? 0 : selectedSymbologies(mask);
+    if (!image.isNull() && syms != 0) {
         QElapsedTimer timer;
         timer.start();
         try {
             const QImage gray = image.convertToFormat(QImage::Format_Grayscale8);
             if (!gray.isNull()) {
-                const ZXing::ImageView view(gray.constBits(), gray.width(),
-                                            gray.height(), ZXing::ImageFormat::Lum,
-                                            gray.bytesPerLine());
-                auto options = ZXing::ReaderOptions()
-                        .setTryHarder(true)
-                        .setTryDownscale(true);
-                bool filterUsable = true;
-                if (mask == FormatGroup::All) {
-                    // The default: keep the exact pre-toggle behaviour
-                    // (BarcodeFormat::All, not an explicit list).
-                    options.setFormats(ZXing::BarcodeFormat::All);
-                } else {
-                    // Every group maps to formats, so this is only empty
-                    // if a group bit had no entries — and passing an empty
-                    // set to zxing means "no filter", i.e. decoding
-                    // everything the user asked to disable.
-                    std::vector<ZXing::BarcodeFormat> selected = selectedFormats(mask);
-                    if (selected.empty())
-                        filterUsable = false;
-                    else
-                        options.setFormats(ZXing::BarcodeFormats(std::move(selected)));
+                const omniscan::ImageView view(gray.constBits(), gray.width(),
+                                               gray.height(), gray.bytesPerLine());
+                omniscan::Options options;
+                options.enabled_symbologies = syms;
+                options.max_symbols = 1; // resultReady carries one result
+                std::vector<omniscan::Result> out;
+                omniscan::DecodeStatus st =
+                    omniscan::decode_into(view, options, out);
+                if (st == omniscan::DecodeStatus::NoBarcodeFound && out.empty()) {
+                    // Miss at default settings: one harder retry (extra
+                    // scan passes per the support matrix — confined here to
+                    // images that found nothing).
+                    options.try_harder = true;
+                    st = omniscan::decode_into(view, options, out);
                 }
-
-                if (filterUsable) {
-                    const auto result = ZXing::ReadBarcode(view, options);
-                    if (result.isValid() && !result.text().empty()) {
-                        found = true;
-                        text = QString::fromStdString(result.text());
-                        format = QString::fromStdString(ZXing::ToString(result.format()));
-                    }
+                // Every non-Ok status funnels into the miss path, exactly
+                // like today's static miss: NoBarcodeFound is silent live /
+                // notFound() one-shot via the downstream logic, and
+                // BackendNotAvailable falls through to the D-Bus QR path
+                // the same way (the backend is compiled in, so that only
+                // fires for bits no backend handles).
+                if (st == omniscan::DecodeStatus::Ok && !out.empty()
+                        && !out.front().text.empty()) {
+                    found = true;
+                    text = QString::fromStdString(out.front().text);
+                    format = appLabel(out.front().symbology);
                 }
             }
         } catch (...) {
-            // zxing throws on malformed input paths rather than crashing;
-            // report it as a miss so the caller can fall back or say so.
+            // The C++ API promises no exceptions, but a corrupt image must
+            // never take the worker down: report it as a miss so the
+            // caller can fall back or say so.
             std::fprintf(stderr, "static decode: exception, treated as miss\n");
             found = false;
             text.clear();

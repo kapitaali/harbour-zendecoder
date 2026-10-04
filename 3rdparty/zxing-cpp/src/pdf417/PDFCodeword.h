@@ -23,7 +23,7 @@ class Codeword
 	int _rowNumber = BARCODE_ROW_UNKNOWN;
 
 public:
-	Codeword() = default;
+	Codeword() {}
 	Codeword(int startX, int endX, int bucket, int value) : _startX(startX), _endX(endX), _bucket(bucket), _value(value) {}
 
 	bool hasValidRowNumber() const {

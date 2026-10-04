@@ -6,17 +6,12 @@
 
 #include "Barcode.h"
 
-#include "BarcodeData.h"
-#include "JSON.h"
+#include "DecoderResult.h"
+#include "DetectorResult.h"
 #include "ZXAlgorithms.h"
 
+#ifdef ZXING_EXPERIMENTAL_API
 #include "BitMatrix.h"
-
-#include <cmath>
-#include <list>
-#include <map>
-#include <numbers>
-#include <utility>
 
 #ifdef ZXING_USE_ZINT
 #include <zint.h>
@@ -24,188 +19,187 @@ void zint_symbol_deleter::operator()(zint_symbol* p) const noexcept
 {
 	ZBarcode_Delete(p);
 }
+#else
+struct zint_symbol {};
+void zint_symbol_deleter::operator()(zint_symbol*) const noexcept {}
 #endif
+
+#endif
+
+#include <cmath>
+#include <list>
+#include <map>
+#include <utility>
 
 namespace ZXing {
 
-Barcode::Barcode() : d(std::make_shared<Data>()) {}
+Result::Result(const std::string& text, int y, int xStart, int xStop, BarcodeFormat format, SymbologyIdentifier si, Error error, bool readerInit)
+	: _content({ByteArray(text)}, si),
+	  _error(error),
+	  _position(Line(y, xStart, xStop)),
+	  _format(format),
+	  _readerInit(readerInit)
+{}
 
-Barcode::Barcode(Data&& data) : d(std::make_shared<Data>(std::move(data))) {}
-
-bool Barcode::isValid() const
+Result::Result(DecoderResult&& decodeResult, DetectorResult&& detectorResult, BarcodeFormat format)
+	: _content(std::move(decodeResult).content()),
+	  _error(std::move(decodeResult).error()),
+	  _position(std::move(detectorResult).position()),
+	  _sai(decodeResult.structuredAppend()),
+	  _format(format),
+	  _lineCount(decodeResult.lineCount()),
+	  _isMirrored(decodeResult.isMirrored()),
+	  _readerInit(decodeResult.readerInit())
+#ifdef ZXING_EXPERIMENTAL_API
+	  , _symbol(std::make_shared<BitMatrix>(std::move(detectorResult).bits()))
+#endif
 {
-	return d->isValid();
+	if (decodeResult.versionNumber())
+		snprintf(_version, 4, "%d", decodeResult.versionNumber());
+	snprintf(_ecLevel, 4, "%s", decodeResult.ecLevel().data());
+
+	// TODO: add type opaque and code specific 'extra data'? (see DecoderResult::extra())
 }
 
-const Error& Barcode::error() const
+Result::Result(DecoderResult&& decodeResult, Position&& position, BarcodeFormat format)
+	: Result(std::move(decodeResult), {{}, std::move(position)}, format)
+{}
+
+bool Result::isValid() const
 {
-	return d->error;
+	return format() != BarcodeFormat::None && !_content.bytes.empty() && !error();
 }
 
-BarcodeFormat Barcode::format() const
+const ByteArray& Result::bytes() const
 {
-	return d->format;
+	return _content.bytes;
 }
 
-const Position& Barcode::position() const
+ByteArray Result::bytesECI() const
 {
-	return d->position;
+	return _content.bytesECI();
 }
 
-const std::vector<uint8_t>& Barcode::bytes() const
+std::string Result::text(TextMode mode) const
 {
-	return d->content.bytes;
+	return _content.text(mode);
 }
 
-std::vector<uint8_t> Barcode::bytesECI() const
+std::string Result::text() const
 {
-	return d->content.bytesECI();
+	return text(_readerOpts.textMode());
 }
 
-std::string Barcode::text(TextMode mode) const
+std::string Result::ecLevel() const
 {
-	return d->content.text(mode);
+	return _ecLevel;
 }
 
-std::string Barcode::text() const
+ContentType Result::contentType() const
 {
-	return text(d->readerOpts.textMode());
+	return _content.type();
 }
 
-ContentType Barcode::contentType() const
+bool Result::hasECI() const
 {
-	return d->content.type();
+	return _content.hasECI;
 }
 
-bool Barcode::hasECI() const
+int Result::orientation() const
 {
-	return d->content.hasECI;
+	constexpr auto std_numbers_pi_v = 3.14159265358979323846; // TODO: c++20 <numbers>
+	return narrow_cast<int>(std::lround(_position.orientation() * 180 / std_numbers_pi_v));
 }
 
-int Barcode::orientation() const
+std::string Result::symbologyIdentifier() const
 {
-	return narrow_cast<int>(std::lround(d->position.orientation() * 180 / std::numbers::pi));
+	return _content.symbology.toString();
 }
 
-bool Barcode::isMirrored() const
+int Result::sequenceSize() const
 {
-	return d->isMirrored;
+	return _sai.count;
 }
 
-bool Barcode::isInverted() const
+int Result::sequenceIndex() const
 {
-	return d->isInverted;
+	return _sai.index;
 }
 
-std::string Barcode::symbologyIdentifier() const
+std::string Result::sequenceId() const
 {
-	return d->content.symbology.toString();
+	return _sai.id;
 }
 
-int Barcode::sequenceSize() const
+std::string Result::version() const
 {
-	return d->sai.count;
+	return _version;
 }
 
-int Barcode::sequenceIndex() const
-{
-	return d->sai.index;
-}
-
-std::string Barcode::sequenceId() const
-{
-	return d->sai.id;
-}
-
-int Barcode::lineCount() const
-{
-	return d->lineCount;
-}
-
-Barcode& Barcode::setReaderOptions(const ReaderOptions& opts)
+Result& Result::setReaderOptions(const ReaderOptions& opts)
 {
 	if (opts.characterSet() != CharacterSet::Unknown)
-		d->content.defaultCharset = opts.characterSet();
-	d->readerOpts = opts;
+		_content.defaultCharset = opts.characterSet();
+	_readerOpts = opts;
 	return *this;
 }
 
-ImageView Barcode::symbol() const
+#ifdef ZXING_EXPERIMENTAL_API
+void Result::symbol(BitMatrix&& bits)
 {
-	return !d->symbol.empty() ? ImageView{d->symbol.row(0).begin(), d->symbol.width(), d->symbol.height(), ImageFormat::Lum}
-							  : ImageView{};
+	bits.flipAll();
+	_symbol = std::make_shared<BitMatrix>(std::move(bits));
 }
 
-#if defined(ZXING_USE_ZINT) && defined(ZXING_EXPERIMENTAL_API)
-zint_symbol* Barcode::zint() const
+ImageView Result::symbol() const
 {
-	return d->zint.get();
+	return {_symbol->row(0).begin(), _symbol->width(), _symbol->height(), ImageFormat::Lum};
+}
+
+void Result::zint(unique_zint_symbol&& z)
+{
+	_zint = std::shared_ptr(std::move(z));
 }
 #endif
 
-std::string Barcode::extra(std::string_view key) const
+bool Result::operator==(const Result& o) const
 {
-	if (key == "ALL") {
-		if (format() == BarcodeFormat::None)
-			return {};
-		auto res =
-			StrCat("{", JsonProp("Text", text(TextMode::Plain)), JsonProp("HRI", text(TextMode::HRI)),
-				   JsonProp("TextECI", text(TextMode::ECI)), JsonProp("Bytes", text(TextMode::Hex)),
-				   JsonProp("Identifier", symbologyIdentifier()), JsonProp("Type", Name(format())),
-				   JsonProp("Symbology", Name(Symbology(format()))), JsonProp("ContentType", isValid() ? ToString(contentType()) : ""),
-				   JsonProp("Position", ToString(position())), JsonProp("HasECI", hasECI()), JsonProp("IsMirrored", isMirrored()),
-				   JsonProp("IsInverted", isInverted()), d->extra, JsonProp("Error", ToString(error())));
-		res.back() = '}';
-		return res;
-	}
-	return d->extra.empty() ? ""
-		   : key.empty()    ? StrCat("{", std::string_view(d->extra).substr(0, d->extra.size() - 1), "}") // remove trailing ','
-							: JsonGet<std::string>(d->extra, key).value_or(""); // make sure JsonUnescape() is called
-}
-
-bool Barcode::operator==(const Barcode& o) const
-{
-	return *d == *o.d;
-}
-
-bool BarcodeData::operator==(const BarcodeData& o) const
-{
-	if (format != o.format)
-		return false;
-
-	// handle MatrixCodes first
-	if (!(format & BarcodeFormat::AllLinear)) {
-		if (isValid() && o.isValid() && content.bytes != o.content.bytes)
+	// handle case where both are MatrixCodes first
+	if (!BarcodeFormats(BarcodeFormat::LinearCodes).testFlags(format() | o.format())) {
+		if (format() != o.format() || (bytes() != o.bytes() && isValid() && o.isValid()))
 			return false;
 
 		// check for equal position if both are valid with equal bytes or at least one is in error
-		return IsInside(Center(o.position), position);
+		return IsInside(Center(o.position()), position());
 	}
 
-	if (content.bytes != o.content.bytes || error != o.error || orientation() != o.orientation())
+	if (format() != o.format() || bytes() != o.bytes() || error() != o.error())
 		return false;
 
-	if (lineCount > 1 && o.lineCount > 1)
-		return HaveIntersectingBoundingBoxes(o.position, position);
+	if (orientation() != o.orientation())
+		return false;
+
+	if (lineCount() > 1 && o.lineCount() > 1)
+		return HaveIntersectingBoundingBoxes(o.position(), position());
 
 	// the following code is only meant for this or other lineCount == 1
-	assert(lineCount == 1 || o.lineCount == 1);
+	assert(lineCount() == 1 || o.lineCount() == 1);
 
 	// sl == single line, ml = multi line
-	const auto& sl = lineCount == 1 ? *this : o;
-	const auto& ml = lineCount == 1 ? o : *this;
+	const auto& sl = lineCount() == 1 ? *this : o;
+	const auto& ml = lineCount() == 1 ? o : *this;
 
 	// If one line is less than half the length of the other away from the
 	// latter, we consider it to belong to the same symbol.
 	// Additionally, both need to have roughly the same length (see #367).
-	auto dTop = maxAbsComponent(ml.position.topLeft() - sl.position.topLeft());
-	auto dBot = maxAbsComponent(ml.position.bottomLeft() - sl.position.topLeft());
-	auto slLength = maxAbsComponent(sl.position.topLeft() - sl.position.bottomRight());
-	bool isHorizontal = sl.position.topLeft().y == sl.position.bottomRight().y;
-	// Measure the multi line length in the same direction as the single line one (not diagonally)
+	auto dTop = maxAbsComponent(ml.position().topLeft() - sl.position().topLeft());
+	auto dBot = maxAbsComponent(ml.position().bottomLeft() - sl.position().topLeft());
+	auto slLength = maxAbsComponent(sl.position().topLeft() - sl.position().bottomRight());
+	bool isHorizontal = sl.position().topLeft().y == sl.position().bottomRight().y;
+	// Measure the multi line length in the same direction as the single line one (not diagonaly)
 	// to make sure overly tall symbols don't get segmented (see #769).
-	auto mlLength = isHorizontal ? std::abs(ml.position.topLeft().x - ml.position.bottomRight().x)
-								 : std::abs(ml.position.topLeft().y - ml.position.bottomRight().y);
+	auto mlLength = isHorizontal ? std::abs(ml.position().topLeft().x - ml.position().bottomRight().x)
+								 : std::abs(ml.position().topLeft().y - ml.position().bottomRight().y);
 
 	return std::min(dTop, dBot) < slLength / 2 && std::abs(slLength - mlLength) < slLength / 5;
 }
@@ -220,15 +214,15 @@ Barcode MergeStructuredAppendSequence(const Barcodes& barcodes)
 
 	Barcode res = allBarcodes.front();
 	for (auto i = std::next(allBarcodes.begin()); i != allBarcodes.end(); ++i)
-		res.d->content.append(i->d->content);
+		res._content.append(i->_content);
 
-	res.d->position = {};
-	res.d->sai.index = -1;
+	res._position = {};
+	res._sai.index = -1;
 
 	if (allBarcodes.back().sequenceSize() != Size(allBarcodes) ||
 		!std::all_of(allBarcodes.begin(), allBarcodes.end(),
 					 [&](Barcode& it) { return it.sequenceId() == allBarcodes.front().sequenceId(); }))
-		res.d->error = FormatError("sequenceIDs not matching during structured append sequence merging");
+		res._error = FormatError("sequenceIDs not matching during structured append sequence merging");
 
 	return res;
 }

@@ -29,7 +29,7 @@ public:
 		Right,
 	};
 
-	DetectionResultColumn() = default;
+	DetectionResultColumn() {}
 	explicit DetectionResultColumn(const BoundingBox& boundingBox, RowIndicator rowInd = RowIndicator::None);
 
 	bool isRowIndicator() const {

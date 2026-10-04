@@ -1,0 +1,8 @@
+# Step-0 baseline (pre-swap, zxing-cpp 3.0.2, BarcodeFormat::All + tryHarder/tryDownscale)
+# host harness mirroring StaticDecoder::decode, 2026-10-04; format: file | label | text | ms
+/tmp/omniscan-work/fixtures/c128_oatly.pgm | Code 128 | (01)27394376616222(15)240212(10)3043AAG | 34
+/tmp/omniscan-work/fixtures/ean13_gummy.pgm | EAN-13 | 4620017455554 | 19
+/tmp/omniscan-work/fixtures/ean13_gummy_rot90.pgm | EAN-13 | 4620017455554 | 20
+/tmp/omniscan-work/fixtures/kix_clean.pgm |  |  | 3
+/tmp/omniscan-work/fixtures/nocode_text.pgm |  |  | 20
+/tmp/omniscan-work/fixtures/qr_nhs.pgm | QR Code | UKC19TRACING:1:eyJhbGciOiJFUzI1NiIsImtpZCI6IllycWVMVHE4ei1vZkg1bnpsYVNHbllSZkI5YnU5eVBsV1lVXzJiNnFYT1EifQ.eyJpZCI6IlJKNk1LUDhSIiwib3BuIjoiUGVsdCBUcmFkZXIiLCJ2dCI6IjAwOCIsInBjIjoiRUM0TjZBUCJ9.EZZ704j_lFOnoXeq2rE4UtzN4dW1GQ4YLXy266hUOwlo-VofcoSJX1tgLSw7_buV3THRaEE13oGa1wP12bu8EQ | 138

@@ -3,8 +3,9 @@ Summary:    Barcode and QR code reader for Sailfish OS
 Version: 0.1.0
 Release:    1
 Group:      Qt/Qt
-# App code is GPL-3.0 (LICENSE); the vendored decoder adds zxing-cpp
-# (3rdparty/zxing-cpp/LICENSE, Apache-2.0) and its libzueci
+# App code is GPL-3.0 (LICENSE); the vendored decoder adds libomniscan
+# (3rdparty/omniscan/LICENSE, Apache-2.0) with its zxing-cpp backend
+# (3rdparty/zxing-cpp/LICENSE, Apache-2.0) and libzueci
 # (BSD-3-Clause, SPDX tag in each file).
 License:    GPL-3.0-only AND Apache-2.0 AND BSD-3-Clause
 URL:        https://github.com/kapitaali/harbour-zendecoder

@@ -72,7 +72,7 @@ class BarcodeMatrix
 	int _currentRow = -1;
 
 public:
-	BarcodeMatrix() = default;
+	BarcodeMatrix() {}
 
 	/**
 	* @param height the height of the matrix (Rows)

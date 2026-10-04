@@ -36,7 +36,11 @@ static int combins(int n, int r)
 	return val;
 }
 
-int GetValue(ArrayView<int> widths, int maxWidth, bool noNarrow)
+#ifdef __cpp_lib_span
+int GetValue(const std::span<int> widths, int maxWidth, bool noNarrow)
+#else
+int GetValue(const Array4I& widths, int maxWidth, bool noNarrow)
+#endif
 {
 	int elements = Size(widths);
 	int n = Reduce(widths);

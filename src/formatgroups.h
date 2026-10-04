@@ -3,7 +3,7 @@
  * switches (all ON by default, per PLAN.md).
  *
  * The bit values travel Settings -> Decoder -> StaticDecoder as a
- * quint32 mask; the actual mapping to ZXing::BarcodeFormat values lives
+ * quint32 mask; the actual mapping to libomniscan Symbology bits lives
  * in staticdecoder.cpp, next to the only code that needs it. Decoder
  * also uses FormatGroup::Matrix to decide whether the QR-only D-Bus
  * fallback is allowed to answer at all (it must not decode codes the

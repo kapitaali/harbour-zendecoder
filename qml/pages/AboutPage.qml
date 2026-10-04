@@ -58,7 +58,8 @@ Page {
                       "• Gallery image import + manual entry\n" +
                       "• History with CSV/JSON export\n" +
                       "• Optional product lookup\n\n" +
-                      "Decoding runs on-device via the system zxing service. " +
+                      "Decoding runs fully on-device (libomniscan with " +
+                      "zxing-cpp, Apache-2.0). " +
                       "Network is only used for opt-in product lookup."
                 color: Theme.primaryColor
                 font.pixelSize: Theme.fontSizeSmall
@@ -99,7 +100,7 @@ Page {
 
             Label {
                 width: parent.width
-                text: "GPL-3.0-only. zxing decoding by the system service (zxing-cpp)."
+                text: "GPL-3.0-only. Decoding by libomniscan + zxing-cpp (Apache-2.0)."
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeExtraSmall
                 horizontalAlignment: Text.AlignHCenter

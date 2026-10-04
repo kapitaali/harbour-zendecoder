@@ -42,6 +42,7 @@ enum class CharacterSet : unsigned char
 	EUC_JP,
 	EUC_KR,
 	UTF16BE,
+	UnicodeBig [[deprecated]] = UTF16BE,
 	UTF8,
 	UTF16LE,
 	UTF32BE,

@@ -15,7 +15,7 @@ class Reader : public ZXing::Reader
 public:
 	using ZXing::Reader::Reader;
 
-	BarcodesData read(const BinaryBitmap& image, int maxSymbols) const override;
+	Barcode decode(const BinaryBitmap& image) const override;
 };
 
 } // namespace ZXing::MaxiCode

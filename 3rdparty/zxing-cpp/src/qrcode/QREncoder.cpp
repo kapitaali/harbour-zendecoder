@@ -483,11 +483,10 @@ static const Version& RecommendVersion(ErrorCorrectionLevel ecLevel, CodecMode m
 EncodeResult Encode(const std::wstring& content, ErrorCorrectionLevel ecLevel, CharacterSet charset, int versionNumber,
 					bool useGs1Format, int maskPattern)
 {
-	if (charset == CharacterSet::Unknown) {
+	bool charsetWasUnknown = charset == CharacterSet::Unknown;
+	if (charsetWasUnknown) {
 		charset = DEFAULT_BYTE_MODE_ENCODING;
 	}
-
-	bool charsetIsDefault = (charset == DEFAULT_BYTE_MODE_ENCODING);
 
 	// Pick an encoding mode appropriate for the content. Note that this will not attempt to use
 	// multiple modes / segments even if that were more efficient. Twould be nice.
@@ -498,7 +497,7 @@ EncodeResult Encode(const std::wstring& content, ErrorCorrectionLevel ecLevel, C
 	BitArray headerBits;
 
 	// Append ECI segment if applicable
-	if (mode == CodecMode::BYTE && !charsetIsDefault) {
+	if (mode == CodecMode::BYTE && !charsetWasUnknown) {
 		AppendECI(charset, headerBits);
 	}
 

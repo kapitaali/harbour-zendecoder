@@ -6,8 +6,6 @@
 
 #include "QRMaskUtil.h"
 
-#include "ZXAlgorithms.h"
-
 #include <algorithm>
 #include <array>
 #include <cassert>
