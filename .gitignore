@@ -13,3 +13,8 @@ documentation.list
 
 # Packaged output and per-target copies.
 RPMS/
+
+# Editor swap/backup files.
+*.swp
+*.swo
+*~
