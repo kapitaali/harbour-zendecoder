@@ -186,6 +186,7 @@ private:
     QPointer<QObject> m_captureGroup;   // the camera's imageCapture group
     QString m_scanFilePath;             // private file captures are written to
     bool m_resolutionDone;              // camera configured (or gave up)
+    bool m_flashLogged;                 // flash capability logged once per camera
     QAtomicInt m_busy;         // one decode in flight at a time
     bool m_oneShot;             // current decode came from decodeFile(): report empties
     QTime m_lastSubmit;        // decodes are sampled a few times per second

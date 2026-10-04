@@ -142,16 +142,6 @@ Page {
         Component.onCompleted: decoder.attachCamera(camera)
     }
 
-    // Sailfish's own QtMultimedia fork ships a standalone Torch element
-    // (enabled + power) alongside the standard flash.mode path — the
-    // stock camera talks to the LED through it. Drive both so the torch
-    // works whichever way this device's HAL exposes it.
-    Torch {
-        id: sfosTorch
-        enabled: settings.torchOn
-        power: 100
-    }
-
     VideoOutput {
         id: viewfinder
         anchors.fill: parent
@@ -277,9 +267,7 @@ Page {
                     decoder.logMessage("torch toggled: on=" + settings.torchOn
                             + " flash.mode=" + camera.flash.mode
                             + " flash.ready=" + camera.flash.ready
-                            + " status=" + camera.cameraStatus
-                            + " torch.enabled=" + sfosTorch.enabled
-                            + " torch.power=" + sfosTorch.power)
+                            + " status=" + camera.cameraStatus)
                 }
             }
             Button {

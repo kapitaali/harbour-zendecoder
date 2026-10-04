@@ -32,6 +32,7 @@
 #include <QtDBus/QDBusUnixFileDescriptor>
 
 #include <QtMultimedia/QCamera>
+#include <QtMultimedia/QCameraExposure>
 #include <QtMultimedia/QCameraViewfinderSettings>
 
 #include <QCoreApplication>
@@ -108,6 +109,7 @@ QString localPath(const QString &fileName)
 Decoder::Decoder(QObject *parent)
     : QObject(parent)
     , m_resolutionDone(false)
+    , m_flashLogged(false)
     , m_busy(0)
     , m_oneShot(false)
     , m_frames(0)
@@ -208,6 +210,7 @@ void Decoder::attachCamera(QObject *qmlCamera)
     m_camera = qmlCamera;
     m_captureGroup = capture;
     m_resolutionDone = false;           // this camera still wants configuring
+    m_flashLogged = false;              // re-probe flash capability per camera
 
     // Captures go to a private cache file, never to the gallery: the path is
     // handed to every capture via captureToLocation(), read back through
@@ -240,6 +243,24 @@ void Decoder::logReady(bool ready)
 {
     std::fprintf(stderr, "[%s] decode ready=%d\n", timestamp(), ready ? 1 : 0);
     std::fflush(stderr);
+    if (!ready || m_flashLogged)
+        return;
+    // Torch debugging: does the gstcamerabin backend advertise FlashTorch
+    // at all? Logged once when the camera first comes up (exposure queries
+    // are meaningless before that).
+    QObject *media = m_camera ? m_camera->property("mediaObject").value<QObject *>()
+                              : nullptr;
+    QCamera *qcam = qobject_cast<QCamera *>(media);
+    if (!qcam)
+        return;
+    QCameraExposure *e = qcam->exposure();
+    qInfo("flash capability: FlashTorch=%d FlashOff=%d FlashAuto=%d "
+          "current=0x%x ready=%d",
+          e->isFlashModeSupported(QCameraExposure::FlashTorch) ? 1 : 0,
+          e->isFlashModeSupported(QCameraExposure::FlashOff) ? 1 : 0,
+          e->isFlashModeSupported(QCameraExposure::FlashAuto) ? 1 : 0,
+          int(e->flashMode()), e->isFlashReady() ? 1 : 0);
+    m_flashLogged = true;
 }
 
 bool Decoder::requestCapture()
