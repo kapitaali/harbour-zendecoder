@@ -27,8 +27,7 @@ Settings::Settings(QObject *parent)
     , m_settings(settingsFilePath(), QSettings::IniFormat)
     , m_soundEnabled(m_settings.value(QStringLiteral("soundEnabled"), true).toBool())
     , m_vibrationEnabled(m_settings.value(QStringLiteral("vibrationEnabled"), true).toBool())
-    , m_productLookupEnabled(m_settings.value(QStringLiteral("productLookupEnabled"), true).toBool())
-    , m_torchOn(false)
+        , m_productLookupEnabled(m_settings.value(QStringLiteral("productLookupEnabled"), true).toBool())
     // Every symbology group is on by default (PLAN.md); the keys only
     // appear in the file once the user has moved a switch.
     , m_formatRetail(m_settings.value(QStringLiteral("formatRetail"), true).toBool())
@@ -69,16 +68,6 @@ void Settings::setProductLookupEnabled(bool on)
     m_settings.setValue(QStringLiteral("productLookupEnabled"), on);
     m_settings.sync();
     emit productLookupEnabledChanged();
-}
-
-bool Settings::torchOn() const { return m_torchOn; }
-void Settings::setTorchOn(bool on)
-{
-    // Torch is session state (camera flash mode), not persisted.
-    if (m_torchOn == on)
-        return;
-    m_torchOn = on;
-    emit torchOnChanged();
 }
 
 bool Settings::formatRetail() const { return m_formatRetail; }

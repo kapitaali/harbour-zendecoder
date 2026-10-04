@@ -64,16 +64,6 @@ Page {
             camera.start()
     }
 
-    // Physical torch state: the user toggle gated on being the visible
-    // page of an active app, so the LED never stays on for a backgrounded
-    // or navigated-away scanner. Driven by Decoder::setTorch (kernel
-    // flashlight node) — the QML flash.mode binding above survives as a
-    // no-op fallback for devices whose Qt backend supports FlashTorch.
-    function applyTorch() {
-        decoder.setTorch(settings.torchOn && appActive
-                         && status === PageStatus.Active)
-    }
-
     // Gallery one-shot results arrive asynchronously: usually while the
     // file picker is popping itself closed (status Activating) or just
     // after. Results wait in pendingGalleryOp; a settle-timer delivers
@@ -123,11 +113,11 @@ Page {
             focusMode: Camera.FocusContinuous
         }
 
-        // Re-evaluate when flash.ready flips: a FlashTorch write issued
-        // while ready is false gets dropped silently and the binding
-        // (which only watched torchOn) never retried.
-        flash.mode: (settings.torchOn && camera.flash.ready)
-                ? Camera.FlashTorch : Camera.FlashOff
+        // Pinned off: no in-app torch (the Qt FlashTorch path is dead on
+        // this device's gstcamerabin backend, and the kernel flashlight
+        // node is read-only inside the Sailjail sandbox; the system
+        // pull-menu torch is the way to light the LED).
+        flash.mode: Camera.FlashOff
 
         onError: {
             decoder.logMessage("camera error " + error + ": " + errorString)
@@ -203,15 +193,12 @@ Page {
             captureFailures = 0
             if (scannerPage.appActive)
                 camera.start()
-            // Re-apply: torch was forced off while we were away.
-            scannerPage.applyTorch()
             // NOTE: gallery results are NOT delivered here — pushing a
             // page while Silica is still updating status causes the
             // binding-loop warning and a swallowed toast. The settle-timer
             // above handles delivery once everything is quiet.
         } else if (status === PageStatus.Inactive && !succeeded) {
             camera.stop()
-            decoder.setTorch(false)
         }
     }
 
@@ -274,18 +261,6 @@ Page {
 
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: settings.torchOn ? "Torch off" : "Torch on"
-                onClicked: {
-                    settings.torchOn = !settings.torchOn
-                    scannerPage.applyTorch()
-                    decoder.logMessage("torch toggled: on=" + settings.torchOn
-                            + " flash.mode=" + camera.flash.mode
-                            + " flash.ready=" + camera.flash.ready
-                            + " status=" + camera.cameraStatus)
-                }
-            }
-            Button {
-                anchors.horizontalCenter: parent.horizontalCenter
                 text: "Import from gallery"
                 onClicked: pageStack.push(imagePickerPage)
             }
@@ -328,11 +303,9 @@ Page {
             decoder.logMessage("app active=" + active)
             if (!active) {
                 camera.stop()
-                decoder.setTorch(false)
             } else if (scannerPage.status === PageStatus.Active
                        && !scannerPage.succeeded) {
                 camera.start()
-                scannerPage.applyTorch()
             }
         }
         onDecoded: {

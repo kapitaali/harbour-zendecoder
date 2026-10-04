@@ -125,12 +125,6 @@ int main(int argc, char *argv[])
                          decoder.setApplicationActive(state == Qt::ApplicationActive);
                      });
 
-    // The kernel torch node keeps its state after we die: never leave the
-    // LED on behind a closed app (backgrounding is already covered by the
-    // setTorch(false) in the QML focus handlers).
-    QObject::connect(app.data(), &QCoreApplication::aboutToQuit,
-                     &decoder, [&decoder]() { decoder.setTorch(false); });
-
     QQmlContext *context = view->rootContext();
     context->setContextProperty("decoder", &decoder);
     context->setContextProperty("history", &history);

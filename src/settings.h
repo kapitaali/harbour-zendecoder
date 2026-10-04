@@ -19,7 +19,6 @@ class Settings : public QObject
     Q_PROPERTY(bool soundEnabled READ soundEnabled WRITE setSoundEnabled NOTIFY soundEnabledChanged)
     Q_PROPERTY(bool vibrationEnabled READ vibrationEnabled WRITE setVibrationEnabled NOTIFY vibrationEnabledChanged)
     Q_PROPERTY(bool productLookupEnabled READ productLookupEnabled WRITE setProductLookupEnabled NOTIFY productLookupEnabledChanged)
-    Q_PROPERTY(bool torchOn READ torchOn WRITE setTorchOn NOTIFY torchOnChanged)
     // Symbology groups (all ON by default); see formatgroups.h for the bits.
     Q_PROPERTY(bool formatRetail READ formatRetail WRITE setFormatRetail NOTIFY formatRetailChanged)
     Q_PROPERTY(bool formatLinear READ formatLinear WRITE setFormatLinear NOTIFY formatLinearChanged)
@@ -37,8 +36,6 @@ public:
     void setVibrationEnabled(bool on);
     bool productLookupEnabled() const;
     void setProductLookupEnabled(bool on);
-    bool torchOn() const;
-    void setTorchOn(bool on);
     bool formatRetail() const;
     void setFormatRetail(bool on);
     bool formatLinear() const;
@@ -53,7 +50,6 @@ signals:
     void soundEnabledChanged();
     void vibrationEnabledChanged();
     void productLookupEnabledChanged();
-    void torchOnChanged();
     void formatRetailChanged();
     void formatLinearChanged();
     void formatMatrixChanged();
@@ -67,7 +63,6 @@ private:
     bool m_soundEnabled;
     bool m_vibrationEnabled;
     bool m_productLookupEnabled;
-    bool m_torchOn;
     bool m_formatRetail;
     bool m_formatLinear;
     bool m_formatMatrix;
