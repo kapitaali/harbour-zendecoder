@@ -1,6 +1,6 @@
 Name:       harbour-zendecoder
 Summary:    Barcode and QR code reader for Sailfish OS
-Version: 0.1.0
+Version: 0.2.0
 Release:    1
 Group:      Qt/Qt
 # App code is GPL-3.0 (LICENSE); the vendored decoder adds libomniscan
