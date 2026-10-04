@@ -113,7 +113,11 @@ Page {
             focusMode: Camera.FocusContinuous
         }
 
-        flash.mode: settings.torchOn ? Camera.FlashTorch : Camera.FlashOff
+        // Re-evaluate when flash.ready flips: a FlashTorch write issued
+        // while ready is false gets dropped silently and the binding
+        // (which only watched torchOn) never retried.
+        flash.mode: (settings.torchOn && camera.flash.ready)
+                ? Camera.FlashTorch : Camera.FlashOff
 
         onError: {
             decoder.logMessage("camera error " + error + ": " + errorString)
@@ -136,6 +140,16 @@ Page {
         }
 
         Component.onCompleted: decoder.attachCamera(camera)
+    }
+
+    // Sailfish's own QtMultimedia fork ships a standalone Torch element
+    // (enabled + power) alongside the standard flash.mode path — the
+    // stock camera talks to the LED through it. Drive both so the torch
+    // works whichever way this device's HAL exposes it.
+    Torch {
+        id: sfosTorch
+        enabled: settings.torchOn
+        power: 100
     }
 
     VideoOutput {
@@ -258,7 +272,15 @@ Page {
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: settings.torchOn ? "Torch off" : "Torch on"
-                onClicked: settings.torchOn = !settings.torchOn
+                onClicked: {
+                    settings.torchOn = !settings.torchOn
+                    decoder.logMessage("torch toggled: on=" + settings.torchOn
+                            + " flash.mode=" + camera.flash.mode
+                            + " flash.ready=" + camera.flash.ready
+                            + " status=" + camera.cameraStatus
+                            + " torch.enabled=" + sfosTorch.enabled
+                            + " torch.power=" + sfosTorch.power)
+                }
             }
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
