@@ -200,7 +200,7 @@ void Decoder::setTorch(bool on)
     static bool missingLogged = false;
     const char *t0 = on ? "0 0 0 1" : "0 0 0 0";
     const char *t1 = on ? "0 1 0 1" : "0 1 0 0";
-    QFile f(QLatin1String(kTorchNode));
+    QFile f(QString::fromLatin1(kTorchNode));
     if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
         if (!missingLogged) {
             missingLogged = true;
