@@ -105,6 +105,16 @@ public:
     Q_INVOKABLE void logMessage(const QString &message);
 
     /**
+     * Drive the torch LED directly through the kernel flashlight node
+     * (MediaTek flashlight-core), bypassing the Qt camera stack: the
+     * gstcamerabin backend advertises no FlashTorch (capability log) and
+     * its flash write dies in the camera HAL (fl_set_level fails), so the
+     * QML flash.mode binding alone cannot light the LED on this device.
+     * The node is world-writable — no root or extra packages needed. On
+     * devices without the node this is a no-op (Qt flash.mode remains).
+     */    Q_INVOKABLE void setTorch(bool on);
+
+    /**
      * Hand over the persistent settings so each submission reads the
      * current symbology group mask (Settings' format toggles). Called once
      * from main() before anything is decoded; nullptr keeps everything on.

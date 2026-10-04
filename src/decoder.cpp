@@ -38,6 +38,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFile>
 #include <QImageReader>
 #include <QSize>
 #include <QStandardPaths>
@@ -185,6 +186,34 @@ Decoder::~Decoder()
         close(m_fd);
         m_fd = -1;
     }
+}
+
+void Decoder::setTorch(bool on)
+{
+    // One "TYPE CT PART TORCH_STATUS" tuple per write() syscall — the
+    // MTK flashlight-core store() parses a single tuple, so two writes
+    // cover both LED channels (ct 0 and 1); each QFile::write() is one
+    // syscall, i.e. one store() call. Single-value writes ("1") are
+    // rejected by the driver ("Error argument number").
+    static const char *kTorchNode =
+        "/sys/class/flashlight_core/flashlight/flashlight_torch";
+    static bool missingLogged = false;
+    const char *t0 = on ? "0 0 0 1" : "0 0 0 0";
+    const char *t1 = on ? "0 1 0 1" : "0 1 0 0";
+    QFile f(QLatin1String(kTorchNode));
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        if (!missingLogged) {
+            missingLogged = true;
+            qInfo("torch sysfs: no node at %s (%s) — Qt flash.mode only",
+                  kTorchNode, qPrintable(f.errorString()));
+        }
+        return;
+    }
+    const qint64 w0 = f.write(t0);
+    const qint64 w1 = f.write(t1);
+    f.close();
+    qInfo("torch sysfs: on=%d wrote %lld/%lld bytes", on ? 1 : 0,
+          (long long)w0, (long long)w1);
 }
 
 void Decoder::logMessage(const QString &message)
