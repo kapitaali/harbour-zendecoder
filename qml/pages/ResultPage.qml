@@ -5,7 +5,7 @@ import "../components"
 /*
  * Scan result: shows the decoded value, type-specific actions
  * (open URL, connect WiFi, save contact, copy/share) and optional
- * product lookup for GTINs.
+ * product/book lookup (GTINs, ISBNs, GS1 element strings).
  */
 Page {
     id: resultPage
@@ -26,7 +26,7 @@ Page {
 
     Component.onCompleted: {
         if (!manual && entry.value && settings.productLookupEnabled
-                && trial.isPro && productLookup.looksLikeGtin(entry.value)) {
+                && trial.isPro && productLookup.lookupSupported(entry.value)) {
             productLookup.lookup(entry.value)
         }
     }
@@ -112,7 +112,7 @@ Page {
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
                 visible: !manual && entry.scanId >= 0 && settings.productLookupEnabled
-                         && productLookup.looksLikeGtin(entry.value)
+                         && productLookup.lookupSupported(entry.value)
                 text: "Look up product"
                 onClicked: productLookup.lookup(entry.value)
             }
