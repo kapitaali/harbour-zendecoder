@@ -13,29 +13,39 @@ entirely on your device, with no account, no ads and no tracking.
 
 - **Live scanning** — point and go: QR (incl. Micro QR and rMQR), EAN/8,
   EAN-13, UPC-A/E, ISBN, ITF, Code 39/93/128, Codabar, DataBar, DX film edge,
-  Aztec, Data Matrix, MaxiCode, PDF417
+  Aztec, Data Matrix, MaxiCode, PDF417, postal codes (KIX, RM4SCC),
+  MSI/Plessey, Telepen, Pharmacode
 - **Import from gallery** — decode codes from screenshots and photos
 - **History** — every scan kept, with symbology and timestamp; export the
   whole log as CSV or JSON
-- **Product lookup** — optionally look up scanned EAN/UPC codes against
-  Open Food Facts (decoding itself never leaves the phone)
+- **Product & book lookup** — optionally look up scanned codes online:
+  EAN/UPC/GTINs against Open Food Facts (falling back to Open Products
+  Facts for non-food items) and book ISBNs against Open Library (decoding
+  itself never leaves the phone)
 - **Your formats, your rules** — switch code groups on or off in Settings;
   the scanner only hunts for what you care about
 - **Considered battery use** — the camera fully releases while the app is
   in the background
 
-Decoding is powered by the vendored zxing-cpp library (GPL-3.0 / Apache-2.0
-/ BSD-3-Clause).
+Decoding is powered by libomniscan with zxing-cpp (Apache-2.0).
 
-## What's new (0.1.0)
+## What's new (0.2.0)
 
-First release.
+- New decoding engine (libomniscan), decoding entirely on-device as before
+- Newly readable formats: postal codes (KIX, RM4SCC), MSI, Plessey,
+  Telepen, Pharmacode
+- Book ISBNs look up title and author via Open Library; non-food products
+  fall back to Open Products Facts when Open Food Facts has no match
+- Torch button removed — the OS sandbox blocks in-app flashlight control;
+  use the pull menu's torch instead
 
 ## Privacy (short version for the form)
 
 All decoding happens on the device. The only network traffic is the optional
-product lookup, which sends the scanned numeric code to Open Food Facts when
-you enable it. Full policy: PRIVACY.md shipped with the package / [URL].
+lookup, which sends the scanned numeric code (nothing else) to Open Food
+Facts / Open Products Facts for products or Open Library for book ISBNs,
+and only when you enable it. Full policy: PRIVACY.md shipped with the
+package / https://github.com/kapitaali/harbour-zendecoder/blob/main/PRIVACY.md.
 
 ## Store listing assets
 
