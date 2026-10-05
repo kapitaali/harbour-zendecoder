@@ -172,7 +172,24 @@ void ProductLookup::onFinished(QNetworkReply *reply)
     }
     const QJsonObject root = doc.object();
     if (root.value(QStringLiteral("status")).toInt() != 1) {
-        qInfo("product lookup %s: not in Open Food Facts", qPrintable(code));
+        if (source == QStringLiteral("off")) {
+            // OFF is food-focused; non-food products (office supplies,
+            // electronics, ...) live in its sister project with the same
+            // API shape. One chained request before giving up.
+            qInfo("product lookup %s: not food, trying Open Products Facts",
+                  qPrintable(code));
+            QUrl url(QStringLiteral("https://world.openproductsfacts.org/api/v2/product/%1.json").arg(code));
+            QNetworkRequest req(url);
+            req.setHeader(QNetworkRequest::UserAgentHeader,
+                          QStringLiteral("harbour-zendecoder/0.2 (SailfishOS)"));
+            req.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
+            QNetworkReply *retry = m_net.get(req);
+            retry->setProperty("query", query);
+            retry->setProperty("barcode", code);
+            retry->setProperty("source", QStringLiteral("opf"));
+            return;
+        }
+        qInfo("product lookup %s: not in Open Food/Products Facts", qPrintable(code));
         emit notFound(query);
         return;
     }

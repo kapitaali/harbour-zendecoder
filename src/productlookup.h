@@ -7,8 +7,9 @@
 #include <QString>
 
 /*
- * Optional product lookup: GTINs via Open Food Facts, ISBN books via
- * Open Library, GS1 element strings via their (01) GTIN through OFF.
+ * Optional product lookup: GTINs via Open Food Facts (falling back to
+ * Open Products Facts for non-food), ISBN books via Open Library, GS1
+ * element strings via their (01) GTIN through OFF.
  *
  * Offline-first: only fires when the user enabled it in Settings and the
  * code matches one of the supported shapes (see lookupSupported()).
