@@ -93,3 +93,10 @@ OTHER_FILES += \
 # Names only, not paths: sailfishapp.prf expands each entry to
 # icons/<size>/<TARGET>.png and installs it into icons/hicolor/<size>/apps.
 SAILFISHAPP_ICONS = 86x86 108x108 128x128 172x172 256x256
+
+# Privacy policy ships with the package (the store listing references it;
+# the repo copy at github.com/kapitaali/harbour-zendecoder is the URL
+# version of the same file).
+privacy.files = PRIVACY.md
+privacy.path = /usr/share/harbour-zendecoder
+INSTALLS += privacy

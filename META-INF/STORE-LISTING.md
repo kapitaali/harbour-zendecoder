@@ -45,7 +45,8 @@ All decoding happens on the device. The only network traffic is the optional
 lookup, which sends the scanned numeric code (nothing else) to Open Food
 Facts / Open Products Facts for products or Open Library for book ISBNs,
 and only when you enable it. Full policy: PRIVACY.md shipped with the
-package / https://github.com/kapitaali/harbour-zendecoder/blob/main/PRIVACY.md.
+package, and at
+https://github.com/kapitaali/harbour-zendecoder/blob/main/PRIVACY.md.
 
 ## Store listing assets
 
