@@ -4,11 +4,19 @@
 #include <QDir>
 
 namespace {
-// v0.1 shared Pro secret. Delivered to buyers via the Ko-fi digital
-// product; entered once in Settings and stored locally. Deliberately kept
-// out of QML (only the .cpp comparison sees it). v2 replaces this with
-// per-email signed keys.
-const char kProSecret[] = "REDACTED-PRO-SECRET";
+// Pro license secret. Lives in secrets/prosecret.h (repo-root, gitignored,
+// never committed or pushed) as `#define PRO_SECRET "..."` — delivered to
+// buyers via the Ko-fi digital product, entered once in Settings and stored
+// locally. Public clones build without that file: PRO_SECRET is empty and
+// no key validates (trial mode still works). Deliberately kept out of QML
+// (only the .cpp comparison sees it). v2 replaces this with per-email
+// signed keys.
+#if __has_include("../secrets/prosecret.h")
+#include "../secrets/prosecret.h"
+#else
+#define PRO_SECRET ""
+#endif
+const char kProSecret[] = PRO_SECRET;
 const int kTrialDays = 14;
 } // namespace
 
@@ -65,7 +73,10 @@ bool TrialManager::hasValidKey() const
 #ifdef PRO_SEED_BUILD
     return true;
 #else
-    return storedKey().trimmed() == QLatin1String(kProSecret);
+    // Empty stored keys never validate — otherwise a public build (empty
+    // PRO_SECRET, see above) would unlock Pro on an empty entry.
+    const QString stored = storedKey().trimmed();
+    return !stored.isEmpty() && stored == QLatin1String(kProSecret);
 #endif
 }
 

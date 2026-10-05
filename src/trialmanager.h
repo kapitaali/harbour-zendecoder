@@ -14,9 +14,10 @@
  * Once PRO_SEED_BUILD is removed, the logic becomes a 14-day trial from
  * first launch plus an offline license key:
  *   isPro() = hasValidKey() || trialDaysLeft() > 0
- * v0.1 key check is a single shared secret delivered via Ko-fi (obfuscated
- * in the .cpp, never in QML). v2 path: per-email signed keys, public key
- * embedded, offline keygen script kept by the developer.
+ * v0.1 key check is a single shared secret delivered via Ko-fi (in the
+ * gitignored secrets/prosecret.h, never in QML or the repo). v2 path:
+ * per-email signed keys, public key embedded, offline keygen script kept
+ * by the developer.
  *
  * firstRun lives in the same sandbox-proven INI file as Settings. Reinstall
  * wipes it (Sailjail data dir is removed with the package) and restarts the
