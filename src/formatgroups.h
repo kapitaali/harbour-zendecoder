@@ -18,7 +18,9 @@ namespace FormatGroup {
 
 /** Retail & logistics: EAN-8/13, UPC-A/E, ISBN, ITF. */
 const quint32 Retail = 1u << 0;
-/** Other 1D: Code 39/93/128, Codabar, DataBar family, DX Film Edge. */
+/** Other 1D: Code 39/93/128, Codabar, DataBar family, stacked
+ *  Code 16K/Codablock F, postal codes. (DX Film Edge has no lib
+ *  enum yet — see staticdecoder.cpp gaps.) */
 const quint32 Linear = 1u << 1;
 /** 2D matrix: QR (incl. Micro/rMQR), Aztec, Data Matrix, MaxiCode. */
 const quint32 Matrix = 1u << 2;

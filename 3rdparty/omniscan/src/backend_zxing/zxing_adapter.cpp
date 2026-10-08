@@ -68,6 +68,10 @@ Symbology from_zx(BarcodeFormat f) {
         case BarcodeFormat::EAN13: return Symbology::EAN13;
         case BarcodeFormat::DataBar: return Symbology::DataBar;
         case BarcodeFormat::DataBarExpanded: return Symbology::DataBarExpanded;
+        // RSS Limited has its own zxing reader behind its own format flag
+        // but no Symbology of its own: it IS GS1 DataBar (the enum
+        // documents DataBar as "all variants"), so it reports as DataBar.
+        case BarcodeFormat::DataBarLimited: return Symbology::DataBar;
         case BarcodeFormat::MaxiCode: return Symbology::MaxiCode;
         default: return Symbology::Unknown;
     }
@@ -97,6 +101,12 @@ struct RealBackend final : Backend {
                     formats |= to_zx(s);
             }
             if (formats.empty()) return DecodeStatus::UnsupportedSymbology;
+            // The Limited reader exists in the pinned zxing but sits behind
+            // its own format flag, which no Symbology maps to -- so without
+            // this, enabling DataBar would silently miss RSS Limited
+            // symbols. Verified: DBAR_LTD vectors miss before, read after.
+            if (formats.testFlag(BarcodeFormat::DataBar))
+                formats |= BarcodeFormat::DataBarLimited;
             ReaderOptions hints;
             hints.setFormats(formats);
             hints.setTryHarder(opt.try_harder);

@@ -12,9 +12,9 @@ retail barcodes, industrial 1D codes, 2D matrix codes and PDF417 — decoded
 entirely on your device, with no account, no ads and no tracking.
 
 - **Live scanning** — point and go: QR (incl. Micro QR and rMQR), EAN/8,
-  EAN-13, UPC-A/E, ISBN, ITF, Code 39/93/128, Codabar, DataBar, DX film edge,
-  Aztec, Data Matrix, MaxiCode, PDF417, postal codes (KIX, RM4SCC),
-  MSI/Plessey, Telepen, Pharmacode
+  EAN-13, UPC-A/E, ISBN, ITF, Code 39/93/128, Codabar, DataBar, stacked
+  Code 16K and Codablock F, Aztec, Data Matrix, MaxiCode, PDF417,
+  postal codes (KIX, RM4SCC), MSI/Plessey, Telepen, Pharmacode
 - **Import from gallery** — decode codes from screenshots and photos
 - **History** — every scan kept, with symbology and timestamp; export the
   whole log as CSV or JSON
@@ -33,7 +33,8 @@ Decoding is powered by libomniscan with zxing-cpp (Apache-2.0).
 
 - New decoding engine (libomniscan), decoding entirely on-device as before
 - Newly readable formats: postal codes (KIX, RM4SCC), MSI, Plessey,
-  Telepen, Pharmacode
+  Telepen, Pharmacode, and the stacked codes Code 16K and Codablock F
+- DataBar Limited and all DataBar variants now read (reported as DataBar)
 - Book ISBNs look up title and author via Open Library; non-food products
   fall back to Open Products Facts when Open Food Facts has no match
 - Torch button removed — the OS sandbox blocks in-app flashlight control;

@@ -1,9 +1,9 @@
 # libomniscan v0.2.0 — vendored static, backend ON (single decode stack).
-# Source: ~/Jolla/libomniscan commit b52ab7a (Apache-2.0, see LICENSE),
+# Source: ~/Jolla/libomniscan commit 561b9e2 (Apache-2.0, see LICENSE),
 # pristine subset: include/omniscan/**, src/{core,backend_zxing,formats,
 # payload}/**. Excluded: capi/ + io/ (app uses the C++ API and Qt image
 # loading), tests/, tools/, bindings/, docs/, cmake/, third_party/.
-# Verify with: git -C <lib> archive b52ab7a <same paths> | tar -t | diff.
+# Verify with: git -C <lib> archive 561b9e2 <same paths> | tar -t | diff.
 # Regenerate on bump; OMNISCAN_WITH_ZXING selects the zxing adapter's real
 # backend (needs 3rdparty/zxing-cpp on the include path, see below).
 
@@ -26,6 +26,8 @@ SOURCES += \
     $$OMNISCAN_ROOT/src/core/result.cpp \
     $$OMNISCAN_ROOT/src/core/symbology.cpp \
     $$OMNISCAN_ROOT/src/backend_zxing/zxing_adapter.cpp \
+    $$OMNISCAN_ROOT/src/formats/databar/databar.cpp \
+    $$OMNISCAN_ROOT/src/formats/linear/code128.cpp \
     $$OMNISCAN_ROOT/src/formats/linear/itf.cpp \
     $$OMNISCAN_ROOT/src/formats/linear/linear_scan.cpp \
     $$OMNISCAN_ROOT/src/formats/linear/msi.cpp \
@@ -33,6 +35,9 @@ SOURCES += \
     $$OMNISCAN_ROOT/src/formats/linear/pharmacode.cpp \
     $$OMNISCAN_ROOT/src/formats/linear/plessey.cpp \
     $$OMNISCAN_ROOT/src/formats/linear/telepen.cpp \
+    $$OMNISCAN_ROOT/src/formats/maxicode/maxicode.cpp \
+    $$OMNISCAN_ROOT/src/formats/maxicode/maxicode_image.cpp \
+    $$OMNISCAN_ROOT/src/formats/maxicode/native_maxicode.cpp \
     $$OMNISCAN_ROOT/src/formats/postal/auspost.cpp \
     $$OMNISCAN_ROOT/src/formats/postal/deutsche_post.cpp \
     $$OMNISCAN_ROOT/src/formats/postal/fourstate.cpp \
@@ -40,6 +45,9 @@ SOURCES += \
     $$OMNISCAN_ROOT/src/formats/postal/japan_post.cpp \
     $$OMNISCAN_ROOT/src/formats/postal/native_postal.cpp \
     $$OMNISCAN_ROOT/src/formats/postal/rm4scc.cpp \
+    $$OMNISCAN_ROOT/src/formats/stacked/native_stacked.cpp \
+    $$OMNISCAN_ROOT/src/formats/stacked/stacked_16k.cpp \
+    $$OMNISCAN_ROOT/src/formats/stacked/stacked_cbf.cpp \
     $$OMNISCAN_ROOT/src/payload/gs1_ai.cpp \
     $$OMNISCAN_ROOT/src/payload/mecard.cpp \
     $$OMNISCAN_ROOT/src/payload/otpauth.cpp \

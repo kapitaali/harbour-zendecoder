@@ -5,8 +5,11 @@
 #include "omniscan/payload.h"
 #include "omniscan/version.h"
 #include "../backend_zxing/zxing_adapter.h"
+#include "../formats/databar/databar.h"
 #include "../formats/linear/native_linear.h"
 #include "../formats/postal/native_postal.h"
+#include "../formats/stacked/native_stacked.h"
+#include "../formats/maxicode/native_maxicode.h"
 #include "despeckle.h"
 #include <algorithm>
 #include <exception>
@@ -60,7 +63,14 @@ struct NativeBackend final : backend_zxing::Backend {
                symbology_bit(Symbology::JapanPost) |
                symbology_bit(Symbology::AustraliaPost) |
                symbology_bit(Symbology::USPSIMb) |
-               symbology_bit(Symbology::KIX);
+               symbology_bit(Symbology::KIX) |
+               symbology_bit(Symbology::Code16K) |
+               symbology_bit(Symbology::CodablockF) |
+               symbology_bit(Symbology::MaxiCode) |
+               // DataBar is an umbrella bit (six variants); the native
+               // reader implements Omnidirectional only — see the decline
+               // rule in decode() below.
+               symbology_bit(Symbology::DataBar);
     }
     DecodeStatus decode(const ImageView& img, const Options& opt,
                         std::vector<Result>& out) const noexcept override {
@@ -86,6 +96,30 @@ struct NativeBackend final : backend_zxing::Backend {
             } catch (...) {
                 b = DecodeStatus::BackendError;
             }
+            DecodeStatus c = DecodeStatus::NoBarcodeFound;
+            try {
+                std::vector<Result> tmp3;
+                c = stacked::decode_native_stacked(v, sub, tmp3);
+                for (auto& r : tmp3) tmp.push_back(std::move(r));
+            } catch (...) {
+                c = DecodeStatus::BackendError;
+            }
+            DecodeStatus d = DecodeStatus::NoBarcodeFound;
+            try {
+                std::vector<Result> tmp4;
+                d = databar::decode_native_databar(v, sub, tmp4);
+                for (auto& r : tmp4) tmp.push_back(std::move(r));
+            } catch (...) {
+                d = DecodeStatus::BackendError;
+            }
+            DecodeStatus e = DecodeStatus::NoBarcodeFound;
+            try {
+                std::vector<Result> tmp5;
+                e = maxicode_native::decode_native_maxicode(v, sub, tmp5);
+                for (auto& r : tmp5) tmp.push_back(std::move(r));
+            } catch (...) {
+                e = DecodeStatus::BackendError;
+            }
             try {
                 out.clear();
                 for (auto& r : tmp) {
@@ -98,15 +132,34 @@ struct NativeBackend final : backend_zxing::Backend {
             if (!out.empty()) return DecodeStatus::Ok;
             // Sub-dispatchers report UnsupportedSymbology for bits outside
             // their own set; combined, "nothing found" dominates.
-            if (a == DecodeStatus::BackendError || b == DecodeStatus::BackendError)
+            if (a == DecodeStatus::BackendError ||
+                b == DecodeStatus::BackendError ||
+                c == DecodeStatus::BackendError ||
+                d == DecodeStatus::BackendError ||
+                e == DecodeStatus::BackendError)
                 return DecodeStatus::BackendError;
             return DecodeStatus::NoBarcodeFound;
+        };
+
+        // DataBar umbrella decline: the native reader implements only
+        // Omnidirectional, so when the whole (native-reachable) request
+        // IS the umbrella bit and nothing decoded even after the retry
+        // below, the other variants need a backend this build doesn't
+        // have. Answering BackendNotAvailable keeps the skip contract
+        // (test_backend / test_corpus / test_real) for stk/ltd rows that
+        // only the zxing backend reads; an Omni symbol decodes, and broad
+        // masks (kMaskAll negatives) keep the honest NoBarcodeFound.
+        auto decline = [&](DecodeStatus s) -> DecodeStatus {
+            if (s == DecodeStatus::NoBarcodeFound &&
+                sub.enabled_symbologies == symbology_bit(Symbology::DataBar))
+                return DecodeStatus::BackendNotAvailable;
+            return s;
         };
 
         DecodeStatus st = pass(img);
         if (st != DecodeStatus::NoBarcodeFound || !opt.try_harder) {
             if (st == DecodeStatus::Ok) fill_parsed(opt, out);
-            return st;
+            return decline(st);
         }
 
         // try_harder despeckle retry. Salt-and-pepper noise corrupts *every*
@@ -125,7 +178,7 @@ struct NativeBackend final : backend_zxing::Backend {
         }
         out.clear();
         if (st2 == DecodeStatus::BackendError) return st2;
-        return st;
+        return decline(st);
     }
 };
 

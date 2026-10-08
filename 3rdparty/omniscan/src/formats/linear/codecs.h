@@ -26,6 +26,13 @@ bool parse_telepen(const std::vector<int>& runs, std::string& text);
 bool parse_pharmacode(const std::vector<int>& bar_runs, double space_mod,
                       std::string& decimal);
 
+// Pharmacode two-track: bar HEIGHT digits left-to-right, each 1
+// (bottom-half), 2 (top-half) or 3 (full-height). Value is bijective
+// base 3, MSD leftmost: sum d_i * 3^i right-to-left. 2..16 bars,
+// range 4..64570080. Pure w.r.t. its inputs (height classification from
+// pixel extents happens in native_linear, not here).
+bool parse_pharma2(const std::vector<int>& digits, std::string& decimal);
+
 // Luhn / Mod-11 primitives shared by encoder (tests) and decoder.
 // Mod-11 wraps: 7 = IBM (common), 9 = NCR (per zint backend/plessey.c).
 // A check value of 10 is unencodable as a single digit; zint emits "10"
@@ -51,6 +58,21 @@ bool telepen_even_parity(unsigned byte);
 // Emits even-length digit strings (2..16 digits). Deutsche Post lengths
 // (12/14) are claimed by the postal dispatcher, not here.
 bool parse_itf(const std::vector<int>& pixel_runs, std::string& digits);
+
+// Code 128 ROW reader (stacking infrastructure — NOT a standalone
+// decoder; Symbology::Code128 stays backend-routed and this parser is
+// never registered in try_fn/order). Input is a QUANTIZED run vector
+// alternating bar,space,... starting and ending with a bar (quantize
+// with quantize_runs(q, 4, 0.30)); matching is exact on quantized
+// modules, damage misquantizes into silence. Emits the symbol VALUE
+// sequence [start, data...] with the mod-103 check verified and
+// stripped and the stop consumed. Tries forward, then reversed runs
+// (reverse-stop path), always reporting print order. Values 0..102
+// data, 103/104/105 Start A/B/C (subset interpretation is the caller's;
+// see docs/formats/code128_row.md). Exported for test linkage (shared
+// builds hide everything else); not part of the supported API surface.
+OMNISCAN_API bool parse_code128_row(const std::vector<int>& q,
+                                    std::vector<int>& values);
 
 }  // namespace linear
 }  // namespace omniscan

@@ -57,6 +57,7 @@ omniscan::SymMask selectedSymbologies(quint32 mask)
     add(FormatGroup::Linear,
         {S::Code39, S::Code93, S::Code128, S::Codabar, S::DataBar,
          S::DataBarExpanded, S::MSI, S::Plessey, S::Telepen, S::Pharmacode,
+         S::CodablockF, S::Code16K,
          S::USPSIMb, S::RM4SCC, S::AustraliaPost, S::JapanPost,
          S::DeutschePost, S::KIX});
     add(FormatGroup::Matrix,
@@ -74,8 +75,9 @@ omniscan::SymMask selectedSymbologies(quint32 mask)
  * silent: ISBN/EAN-2/5 addons, Code 39 Std/Ext, Code 32, PZN, ITF-14 and
  * the DataBar/Aztec/QR/PDF417 sub-variants no longer exist as separate
  * zxing 2.3.0 results — they read as their base symbology with identical
- * text (verified on fixtures; MicroPDF417, DataBar Limited and DX Film
- * Edge have no 2.3.0 reader mapping yet — reported, not renamed).
+ * text (verified on fixtures; MicroPDF417 and DX Film Edge have no
+ * reader yet — reported, not renamed). DataBar Limited now reads as
+ * its umbrella "DataBar" (lib adapter fix).
  */
 QString appLabel(omniscan::Symbology s)
 {
@@ -98,6 +100,8 @@ QString appLabel(omniscan::Symbology s)
     case S::EAN13: return QStringLiteral("EAN-13");
     case S::DataBar: return QStringLiteral("DataBar");
     case S::DataBarExpanded: return QStringLiteral("DataBar Expanded");
+    case S::CodablockF: return QStringLiteral("Codablock F");
+    case S::Code16K: return QStringLiteral("Code 16K");
     case S::MaxiCode: return QStringLiteral("MaxiCode");
     default: break;
     }

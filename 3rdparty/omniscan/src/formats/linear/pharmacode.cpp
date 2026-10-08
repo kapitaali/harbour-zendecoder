@@ -39,5 +39,36 @@ bool parse_pharmacode(const std::vector<int>& bar_runs, double space_mod,
     return true;
 }
 
+// Two-track: bijective base 3, the exact analogue of one-track's
+// bijective base 2 above (digits {1,2} over powers of 2, range
+// 3..131070 = 2*(2^16-1)). Here digits {1,2,3} over powers of 3,
+// range 4..64570080 = 3*(3^16-1)/2. Derivation from the oracle and the
+// validation sweep live in docs/tier3-feasibility.md section 5.3; the
+// per-format page (docs/formats/pharmacode.md) states the rule.
+bool parse_pharma2(const std::vector<int>& digits, std::string& decimal) {
+    decimal.clear();
+    if (digits.size() < 2 || digits.size() > 16) return false;
+    long value = 0;
+    // digits are left-to-right, MSD first: value = value*3 + d.
+    // Prefix values grow monotonically (digits >= 1), so the range cap
+    // can be enforced incrementally with no overflow risk (max ~64M).
+    int nbars = static_cast<int>(digits.size());
+    for (int j = 0; j < nbars; ++j) {
+        int d = digits[j];
+        if (d < 1 || d > 3) return false;
+        value = value * 3L + d;
+        if (value > 64570080L) return false;
+    }
+    if (value < 4) return false;  // >= 2 bars implies >= 1+3; explicit
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "%ld", value);
+    try {
+        decimal = buf;
+    } catch (...) {
+        return false;
+    }
+    return true;
+}
+
 }  // namespace linear
 }  // namespace omniscan

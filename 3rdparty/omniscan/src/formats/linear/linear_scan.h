@@ -1,9 +1,13 @@
 #pragma once
 // Internal 1D scanline infrastructure (not public API). All helpers are pure
 // w.r.t. their inputs, deterministic, and never throw across boundaries.
+// extract_runs / quantize_runs carry OMNISCAN_API solely so tests link in
+// shared builds (same reason as telepen_check_value in codecs.h); they are
+// not part of the supported API surface.
 #include <cstddef>
 #include <vector>
 #include "omniscan/binarizer.h"
+#include "omniscan/export.h"
 #include "omniscan/image.h"
 
 namespace omniscan {
@@ -14,14 +18,15 @@ namespace linear {
 // horizontal: line is row `fixed`, x in [from, to). Else column.
 // min_bars: minimum number of bar runs required. rx0/rx1: ink extent.
 // Returns false on invalid input or too few bars.
-bool extract_runs(const BinaryImage& bin, int fixed, int from, int to,
-                  bool horizontal, int min_bars, std::vector<int>& out_runs,
-                  int& rx0, int& rx1);
+OMNISCAN_API bool extract_runs(const BinaryImage& bin, int fixed, int from,
+                               int to, bool horizontal, int min_bars,
+                               std::vector<int>& out_runs, int& rx0,
+                               int& rx1);
 
 // Quantize run widths to integer modules. Module = minimum run width (clean
 // prints). Each run must satisfy |w/mod - round| <= tol and 1 <= q <= max_q.
-bool quantize_runs(const std::vector<int>& runs, int max_q, double tol,
-                   std::vector<int>& q, double& mod);
+OMNISCAN_API bool quantize_runs(const std::vector<int>& runs, int max_q,
+                                double tol, std::vector<int>& q, double& mod);
 
 // Lines to attempt: center row first; the center column follows it at
 // default settings as the 90-degree retry, and try_harder adds the eighth

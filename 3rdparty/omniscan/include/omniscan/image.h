@@ -58,6 +58,12 @@ public:
     // Transpose (swap axes). Used for 90-degree-rotated code retry paths.
     Image transposed() const;
 
+    // Rotate clockwise as viewed by `degrees` about the image center,
+    // same-size output, bilinear interpolation, `fill` outside. Exact
+    // for multiples of 90 degrees (trig snapped); rotate(θ) followed
+    // by rotate(-θ) is near-identity (interpolation loss only).
+    Image rotated(double degrees, uint8_t fill = 255) const;
+
 private:
     int w_ = 0, h_ = 0, stride_ = 0;
     std::vector<uint8_t> pixels_;
