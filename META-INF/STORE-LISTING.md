@@ -52,5 +52,9 @@ https://github.com/kapitaali/harbour-zendecoder/blob/main/PRIVACY.md.
 ## Store listing assets
 
 - Icon: `store-screenshots/harbour-zendecoder/icon-512.png`
+- Cover image (1080×540, PNG and JPG):
+  `store-screenshots/harbour-zendecoder/cover-1080x540.{png,jpg}`
+  (regenerate with `tools/make-cover.py`; palette and motif are taken
+  from the icon, so re-run it after any icon change)
 - Screenshots (1080×2378, upscaled from device-native 1032×2272):
   `store-screenshots/harbour-zendecoder/01-scanner.png` … `04-settings.png`
