@@ -4,6 +4,8 @@ Code reader app for Sailfish OS (Jolla). Supports 1D / 2D barcodes and other cam
 
 Source input: `~/Jolla/harbour-zendecoder/planning.txt` (generic iOS/Android + ML Kit plan — does NOT apply to Sailfish, used only for format list reference).
 
+Feature plans split out: `PLAN-nfc.md` — NFC tag reading, **planned for v0.3**, gated on the 0.2.0 submission and a device spike.
+
 Current repo state: only `planning.txt` exists. Greenfield app.
 
 ## 1. Locked decisions
