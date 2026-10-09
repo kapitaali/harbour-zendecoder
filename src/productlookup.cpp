@@ -9,6 +9,7 @@
 #include <QNetworkRequest>
 #include <QRegularExpression>
 #include <QStringList>
+#include <QTimer>
 #include <QUrl>
 
 namespace {
@@ -28,6 +29,28 @@ const int kFactsCount = int(sizeof(kFacts) / sizeof(kFacts[0]));
 // Last resort: UPCitemdb's keyless trial tier (100 requests/day by the
 // service). We keep our own day-stamped counter and never cross it.
 const int kUpcDailyLimit = 100;
+
+// Daily answer cache: lookup/<digits> = {d: date, n: name, b: brands, m:
+// miss}. Digits only, so a GS1 element string and its (01) GTIN and a
+// hyphenated ISBN all land on one key; stale (non-today) entries are
+// pruned on every store, so the file holds at most one day of scans.
+const char kCacheGroup[] = "lookup";
+
+QString cacheKey(const QString &query)
+{
+    QString key;
+    key.reserve(query.size());
+    for (int i = 0; i < query.size(); ++i) {
+        if (query.at(i).isDigit())
+            key.append(query.at(i));
+    }
+    return key;
+}
+
+QString cacheToday()
+{
+    return QDate::currentDate().toString(Qt::ISODate);
+}
 } // namespace
 
 ProductLookup::ProductLookup(QObject *parent)
@@ -46,6 +69,26 @@ bool ProductLookup::looksLikeGtin(const QString &text) const
 void ProductLookup::lookup(const QString &barcode)
 {
     const QString code = barcode.trimmed();
+
+    // Already asked about this code today? The first answer of the day is
+    // the one kept — re-serve it from disk instead of re-asking (this is
+    // what makes re-opening a result page free, and keeps the UPCitemdb
+    // daily quota for codes that resolve nowhere else). Misses are cached
+    // too: a code nobody knows is re-checked tomorrow, not every open.
+    {
+        QString cachedName, cachedBrands;
+        bool cachedMiss = false;
+        if (cacheFetch(code, &cachedName, &cachedBrands, &cachedMiss)) {
+            qInfo("product lookup %s: cached answer from earlier today (%s)",
+                  qPrintable(code), cachedMiss ? "miss" : qPrintable(cachedName));
+            if (cachedMiss)
+                deliverNotFound(code);
+            else
+                deliverFound(code, cachedName, cachedBrands);
+            return;
+        }
+    }
+
     if (looksLikeIsbn(code)) {
         // Books route to Open Library, not OFF: a 978/979 EAN-13 is also
         // GTIN-shaped, but OFF rarely holds books while OL answers title
@@ -114,7 +157,7 @@ bool ProductLookup::requestUpcItemDb(const QString &query, const QString &gtin)
     if (used >= kUpcDailyLimit) {
         qInfo("product lookup %s: UPCitemdb quota spent for today (%d/%d)",
               qPrintable(gtin), used, kUpcDailyLimit);
-        emit notFound(query);
+        deliverNotFound(query);
         return false;
     }
     s.setValue(QStringLiteral("upcitemdbCount"), used + 1);
@@ -247,7 +290,7 @@ void ProductLookup::onFinished(QNetworkReply *reply)
     if (!doc.isObject()) {
         qInfo("product lookup %s: unparseable reply (%d bytes)",
               qPrintable(code), int(body.size()));
-        emit notFound(query);
+        deliverNotFound(query);
         return;
     }
     const QJsonObject root = doc.object();
@@ -275,12 +318,12 @@ void ProductLookup::onFinished(QNetworkReply *reply)
     if (name.isEmpty() && brands.isEmpty()) {
         qInfo("product lookup %s: in database, no name or brand",
               qPrintable(code));
-        emit notFound(query);
+        deliverNotFound(query);
         return;
     }
     qInfo("product lookup %s: %s (%s)", qPrintable(code), qPrintable(name),
           qPrintable(brands));
-    emit found(query, name, brands);
+    deliverFound(query, name, brands);
 }
 
 void ProductLookup::parseOpenLibrary(const QString &query, const QByteArray &body)
@@ -291,13 +334,13 @@ void ProductLookup::parseOpenLibrary(const QString &query, const QByteArray &bod
     if (!doc.isObject()) {
         qInfo("book lookup %s: unparseable reply (%d bytes)",
               qPrintable(query), int(body.size()));
-        emit notFound(query);
+        deliverNotFound(query);
         return;
     }
     const QJsonObject root = doc.object();
     if (root.isEmpty()) {
         qInfo("book lookup %s: not in Open Library", qPrintable(query));
-        emit notFound(query);
+        deliverNotFound(query);
         return;
     }
     const QJsonObject book = root.begin().value().toObject();
@@ -313,12 +356,12 @@ void ProductLookup::parseOpenLibrary(const QString &query, const QByteArray &bod
     if (title.isEmpty() && authors.isEmpty()) {
         qInfo("book lookup %s: record has no title or authors",
               qPrintable(query));
-        emit notFound(query);
+        deliverNotFound(query);
         return;
     }
     qInfo("book lookup %s: %s (%s)", qPrintable(query), qPrintable(title),
           qPrintable(authors.join(QStringLiteral(", "))));
-    emit found(query, title, authors.join(QStringLiteral(", ")));
+    deliverFound(query, title, authors.join(QStringLiteral(", ")));
 }
 
 void ProductLookup::parseUpcItemDb(const QString &query, const QByteArray &body)
@@ -333,7 +376,7 @@ void ProductLookup::parseUpcItemDb(const QString &query, const QByteArray &body)
     if (root.value(QStringLiteral("code")).toString() != QLatin1String("OK")
             || items.isEmpty()) {
         qInfo("product lookup %s: not in UPCitemdb", qPrintable(query));
-        emit notFound(query);
+        deliverNotFound(query);
         return;
     }
     const QJsonObject item = items.at(0).toObject();
@@ -342,10 +385,81 @@ void ProductLookup::parseUpcItemDb(const QString &query, const QByteArray &body)
     if (title.isEmpty() && brand.isEmpty()) {
         qInfo("product lookup %s: in UPCitemdb, no title or brand",
               qPrintable(query));
-        emit notFound(query);
+        deliverNotFound(query);
         return;
     }
     qInfo("product lookup %s: %s (%s) [upcitemdb]", qPrintable(query),
           qPrintable(title), qPrintable(brand));
-    emit found(query, title, brand);
+    deliverFound(query, title, brand);
+}
+
+void ProductLookup::deliverFound(const QString &query, const QString &name,
+                                 const QString &brands)
+{
+    cacheStore(query, name, brands, false);
+    // Queued so cached hits are indistinguishable from fresh ones: the
+    // caller's Connections block must already be in place either way.
+    QTimer::singleShot(0, this, [this, query, name, brands]() {
+        emit found(query, name, brands);
+    });
+}
+
+void ProductLookup::deliverNotFound(const QString &query)
+{
+    cacheStore(query, QString(), QString(), true);
+    QTimer::singleShot(0, this, [this, query]() {
+        emit notFound(query);
+    });
+}
+
+bool ProductLookup::cacheFetch(const QString &query, QString *name,
+                               QString *brands, bool *miss) const
+{
+    const QString key = cacheKey(query);
+    if (key.isEmpty())
+        return false;
+    QSettings s(Settings::settingsFilePath(), QSettings::IniFormat);
+    const QString base = QLatin1String(kCacheGroup) + QLatin1Char('/')
+            + key + QLatin1Char('/');
+    if (!s.contains(base + QLatin1Char('d')))
+        return false;
+    if (s.value(base + QLatin1Char('d')).toString() != cacheToday())
+        return false;   // yesterday's answer is stale: ask again
+    *miss = s.value(base + QLatin1Char('m'), false).toBool();
+    *name = s.value(base + QLatin1Char('n')).toString();
+    *brands = s.value(base + QLatin1Char('b')).toString();
+    return true;
+}
+
+void ProductLookup::cacheStore(const QString &query, const QString &name,
+                               const QString &brands, bool miss) const
+{
+    const QString key = cacheKey(query);
+    if (key.isEmpty())
+        return;
+    QSettings s(Settings::settingsFilePath(), QSettings::IniFormat);
+    const QString today = cacheToday();
+    const QString base = QLatin1String(kCacheGroup) + QLatin1Char('/')
+            + key + QLatin1Char('/');
+    s.setValue(base + QLatin1Char('d'), today);
+    if (miss) {
+        s.setValue(base + QLatin1Char('m'), true);
+        s.remove(base + QLatin1Char('n'));
+        s.remove(base + QLatin1Char('b'));
+    } else {
+        s.remove(base + QLatin1Char('m'));
+        s.setValue(base + QLatin1Char('n'), name);
+        s.setValue(base + QLatin1Char('b'), brands);
+    }
+
+    // Prune anything from earlier days: the cache holds at most one day
+    // of scans, so the INI can't grow without bound.
+    s.beginGroup(QLatin1String(kCacheGroup));
+    const QStringList groups = s.childGroups();
+    for (int i = 0; i < groups.count(); ++i) {
+        if (s.value(groups.at(i) + QLatin1Char('/') + QLatin1Char('d'))
+                .toString() != today)
+            s.remove(groups.at(i));
+    }
+    s.endGroup();
 }

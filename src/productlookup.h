@@ -19,10 +19,13 @@
  *
  * Offline-first: only fires when the user enabled it in Settings and the
  * code matches one of the supported shapes (see lookupSupported()).
- * Results are cached by the caller in History (setProductName). No
- * tracking upload — sequential GETs carrying only the code, with a
- * product User-Agent. Network permission is declared in the .desktop
- * Sailjail profile; the privacy policy names every destination.
+ * Answers (hits AND misses) are cached locally for the day they were
+ * fetched: one fetch per code per day, then served from disk — the first
+ * answer of the day being the one kept. Results are cached by the caller
+ * in History (setProductName). No tracking upload — sequential GETs
+ * carrying only the code, with a product User-Agent. Network permission
+ * is declared in the .desktop Sailjail profile; the privacy policy names
+ * every destination.
  */
 class ProductLookup : public QObject
 {
@@ -47,6 +50,17 @@ private slots:
 private:
     void parseOpenLibrary(const QString &query, const QByteArray &body);
     void parseUpcItemDb(const QString &query, const QByteArray &body);
+
+    // Every answer (hit or miss) goes through the daily cache first, so a
+    // code asked about today is answered locally from now on — one network
+    // fetch per code per day, first fetch of the day being authoritative.
+    void deliverFound(const QString &query, const QString &name,
+                      const QString &brands);
+    void deliverNotFound(const QString &query);
+    bool cacheFetch(const QString &query, QString *name, QString *brands,
+                    bool *miss) const;
+    void cacheStore(const QString &query, const QString &name,
+                    const QString &brands, bool miss) const;
     void requestFacts(const QString &query, const QString &gtin, int chain);
     bool requestUpcItemDb(const QString &query, const QString &gtin);
 

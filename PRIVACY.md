@@ -36,6 +36,11 @@ https://world.openfoodfacts.org/privacy. UPCitemdb is a commercial
 service with its own terms; it is only reached as the last step, for
 codes none of the open databases know.
 
+Answers (including "not found") are cached **on the device only** for
+the day they were fetched — each code is fetched at most once per day,
+and the first answer of that day is the one kept. Clearing the app's
+settings file clears this cache; nothing in it leaves the phone.
+
 ## What is explicitly absent
 
 - No advertising, no ad SDKs.
