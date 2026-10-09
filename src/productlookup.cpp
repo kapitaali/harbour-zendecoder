@@ -1,5 +1,7 @@
 #include "productlookup.h"
+#include "settings.h"
 
+#include <QDate>
 #include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -8,6 +10,25 @@
 #include <QRegularExpression>
 #include <QStringList>
 #include <QUrl>
+
+namespace {
+// The four Open Facts siblings share one API and one JSON schema, one
+// index each: food, cosmetics, pet food, everything else. Order = how
+// likely a random retail code is to live there; the chain stops at the
+// first hit, so a normal food scan is still exactly one request.
+struct FactsSource { const char *host; const char *name; };
+const FactsSource kFacts[] = {
+    {"https://world.openfoodfacts.org", "off"},
+    {"https://world.openbeautyfacts.org", "obf"},
+    {"https://world.openpetfoodfacts.org", "opff"},
+    {"https://world.openproductsfacts.org", "opf"},
+};
+const int kFactsCount = int(sizeof(kFacts) / sizeof(kFacts[0]));
+
+// Last resort: UPCitemdb's keyless trial tier (100 requests/day by the
+// service). We keep our own day-stamped counter and never cross it.
+const int kUpcDailyLimit = 100;
+} // namespace
 
 ProductLookup::ProductLookup(QObject *parent)
     : QObject(parent)
@@ -52,7 +73,15 @@ void ProductLookup::lookup(const QString &barcode)
         emit notFound(code);
         return;
     }
-    QUrl url(QStringLiteral("https://world.openfoodfacts.org/api/v2/product/%1.json").arg(gtin));
+    requestFacts(code, gtin, 0);
+}
+
+void ProductLookup::requestFacts(const QString &query, const QString &gtin,
+                                 int chain)
+{
+    const FactsSource &src = kFacts[chain];
+    QUrl url(QStringLiteral("%1/api/v2/product/%2.json")
+                 .arg(QString::fromLatin1(src.host), gtin));
     QNetworkRequest req(url);
     req.setHeader(QNetworkRequest::UserAgentHeader,
                   QStringLiteral("harbour-zendecoder/0.2 (SailfishOS)"));
@@ -60,11 +89,51 @@ void ProductLookup::lookup(const QString &barcode)
     QNetworkReply *reply = m_net.get(req);
     // Signals carry the scanned text (what ResultPage matches on), not the
     // extracted GTIN; the log keeps both.
-    reply->setProperty("query", code);
+    reply->setProperty("query", query);
     reply->setProperty("barcode", gtin);
-    reply->setProperty("source", QStringLiteral("off"));
-    qInfo("product lookup requested: %s (gtin=%s, ptr=%p)", qPrintable(code),
-          qPrintable(gtin), static_cast<void *>(reply));
+    reply->setProperty("source", QString::fromLatin1(src.name));
+    reply->setProperty("chain", chain);
+    qInfo("product lookup requested: %s (gtin=%s, source=%s, chain=%d, ptr=%p)",
+          qPrintable(query), qPrintable(gtin), src.name, chain,
+          static_cast<void *>(reply));
+}
+
+bool ProductLookup::requestUpcItemDb(const QString &query, const QString &gtin)
+{
+    // The trial tier is keyless but capped (100/day). Our own day-stamped
+    // counter in the app's INI file keeps a day full of unknown codes from
+    // crossing it; when the quota is spent the honest answer is simply
+    // "No product found" — not a fake error.
+    QSettings s(Settings::settingsFilePath(), QSettings::IniFormat);
+    const QString today = QDate::currentDate().toString(Qt::ISODate);
+    if (s.value(QStringLiteral("upcitemdbDay")).toString() != today) {
+        s.setValue(QStringLiteral("upcitemdbDay"), today);
+        s.setValue(QStringLiteral("upcitemdbCount"), 0);
+    }
+    const int used = s.value(QStringLiteral("upcitemdbCount")).toInt();
+    if (used >= kUpcDailyLimit) {
+        qInfo("product lookup %s: UPCitemdb quota spent for today (%d/%d)",
+              qPrintable(gtin), used, kUpcDailyLimit);
+        emit notFound(query);
+        return false;
+    }
+    s.setValue(QStringLiteral("upcitemdbCount"), used + 1);
+
+    QUrl url(QStringLiteral("https://api.upcitemdb.com/prod/trial/lookup?upc=%1")
+                 .arg(gtin));
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader,
+                  QStringLiteral("harbour-zendecoder/0.2 (SailfishOS)"));
+    req.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
+    QNetworkReply *reply = m_net.get(req);
+    reply->setProperty("query", query);
+    reply->setProperty("barcode", gtin);
+    reply->setProperty("source", QStringLiteral("upcitemdb"));
+    reply->setProperty("chain", kFactsCount);
+    qInfo("product lookup requested: %s (gtin=%s, source=upcitemdb, "
+          "%d/%d today, ptr=%p)", qPrintable(query), qPrintable(gtin),
+          used + 1, kUpcDailyLimit, static_cast<void *>(reply));
+    return true;
 }
 
 bool ProductLookup::looksLikeIsbn(const QString &text) const
@@ -126,6 +195,9 @@ void ProductLookup::onFinished(QNetworkReply *reply)
     const QString code = reply->property("barcode").toString().isEmpty()
             ? query : reply->property("barcode").toString();
     const QString source = reply->property("source").toString();
+    const int chain = reply->property("chain").toInt();
+    const int http =
+            reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
     // Qt 5.6 delivered this slot twice for one request (log: identical
     // timestamps, same reply). Answer only the first delivery — otherwise
@@ -146,13 +218,19 @@ void ProductLookup::onFinished(QNetworkReply *reply)
           int(body.size()));
     reply->deleteLater();
 
-    // Open Food Facts answers an unknown product with HTTP 404 and a real
-    // body ({"status":0,"status_verbose":"product not found"}). That is a
-    // RESULT, not a fault — the parser below turns it into notFound() ("No
-    // product found"), which reads far better than a "Lookup failed" toast.
-    // Everything else that isn't NoError is a genuine transport failure.
+    // Open Facts answers an unknown product with HTTP 404 and a real body
+    // ({"status":0,"status_verbose":"product not found"}). That is a
+    // RESULT, not a fault — it advances the chain below and, at the end of
+    // it, becomes notFound() ("No product found"), which reads far better
+    // than a "Lookup failed" toast. UPCitemdb validates check digits and
+    // answers 400 INVALID_UPC for a well-shaped but bogus code: also a
+    // result. Anything else that isn't NoError is a genuine fault — except
+    // a 429, which is a rate limit and deserves the error path.
+    const bool upcClientError = source == QStringLiteral("upcitemdb")
+            && http >= 400 && http < 500 && http != 429;
     const bool transportFailure = error != QNetworkReply::NoError
-            && error != QNetworkReply::ContentNotFoundError;
+            && error != QNetworkReply::ContentNotFoundError
+            && !upcClientError;
     if (transportFailure) {
         qInfo("product lookup %s failed: %s", qPrintable(code),
               qPrintable(errorString));
@@ -162,6 +240,8 @@ void ProductLookup::onFinished(QNetworkReply *reply)
 
     if (source == QStringLiteral("openlibrary"))
         return parseOpenLibrary(query, body);
+    if (source == QStringLiteral("upcitemdb"))
+        return parseUpcItemDb(query, body);
 
     const QJsonDocument doc = QJsonDocument::fromJson(body);
     if (!doc.isObject()) {
@@ -172,25 +252,21 @@ void ProductLookup::onFinished(QNetworkReply *reply)
     }
     const QJsonObject root = doc.object();
     if (root.value(QStringLiteral("status")).toInt() != 1) {
-        if (source == QStringLiteral("off")) {
-            // OFF is food-focused; non-food products (office supplies,
-            // electronics, ...) live in its sister project with the same
-            // API shape. One chained request before giving up.
-            qInfo("product lookup %s: not food, trying Open Products Facts",
-                  qPrintable(code));
-            QUrl url(QStringLiteral("https://world.openproductsfacts.org/api/v2/product/%1.json").arg(code));
-            QNetworkRequest req(url);
-            req.setHeader(QNetworkRequest::UserAgentHeader,
-                          QStringLiteral("harbour-zendecoder/0.2 (SailfishOS)"));
-            req.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
-            QNetworkReply *retry = m_net.get(req);
-            retry->setProperty("query", query);
-            retry->setProperty("barcode", code);
-            retry->setProperty("source", QStringLiteral("opf"));
+        // A miss in one sibling index says nothing about the next one:
+        // keep walking the chain, then fall through to UPCitemdb.
+        const QString verbose = root.value(QStringLiteral("status_verbose"))
+                                        .toString();
+        if (chain + 1 < kFactsCount) {
+            qInfo("product lookup %s: %s (%s) — trying %s",
+                  qPrintable(code), qPrintable(verbose), qPrintable(source),
+                  kFacts[chain + 1].name);
+            requestFacts(query, code, chain + 1);
             return;
         }
-        qInfo("product lookup %s: not in Open Food/Products Facts", qPrintable(code));
-        emit notFound(query);
+        qInfo("product lookup %s: %s (%s) — open databases exhausted, "
+              "trying UPCitemdb", qPrintable(code), qPrintable(verbose),
+              qPrintable(source));
+        requestUpcItemDb(query, code);   // emits notFound on quota miss
         return;
     }
     const QJsonObject product = root.value(QStringLiteral("product")).toObject();
@@ -243,4 +319,33 @@ void ProductLookup::parseOpenLibrary(const QString &query, const QByteArray &bod
     qInfo("book lookup %s: %s (%s)", qPrintable(query), qPrintable(title),
           qPrintable(authors.join(QStringLiteral(", "))));
     emit found(query, title, authors.join(QStringLiteral(", ")));
+}
+
+void ProductLookup::parseUpcItemDb(const QString &query, const QByteArray &body)
+{
+    // {"code":"OK","total":n,"items":[{"title":...,"brand":...,...}]}.
+    // total 0 (or anything but OK) means the code is unknown to the index:
+    // a miss, not a fault. The trial index is crowd-scraped, so treat the
+    // first item's title as a suggestion and keep brand separate.
+    const QJsonDocument doc = QJsonDocument::fromJson(body);
+    const QJsonObject root = doc.isObject() ? doc.object() : QJsonObject();
+    const QJsonArray items = root.value(QStringLiteral("items")).toArray();
+    if (root.value(QStringLiteral("code")).toString() != QLatin1String("OK")
+            || items.isEmpty()) {
+        qInfo("product lookup %s: not in UPCitemdb", qPrintable(query));
+        emit notFound(query);
+        return;
+    }
+    const QJsonObject item = items.at(0).toObject();
+    const QString title = item.value(QStringLiteral("title")).toString();
+    const QString brand = item.value(QStringLiteral("brand")).toString();
+    if (title.isEmpty() && brand.isEmpty()) {
+        qInfo("product lookup %s: in UPCitemdb, no title or brand",
+              qPrintable(query));
+        emit notFound(query);
+        return;
+    }
+    qInfo("product lookup %s: %s (%s) [upcitemdb]", qPrintable(query),
+          qPrintable(title), qPrintable(brand));
+    emit found(query, title, brand);
 }

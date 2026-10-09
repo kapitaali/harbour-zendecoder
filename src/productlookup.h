@@ -7,17 +7,22 @@
 #include <QString>
 
 /*
- * Optional product lookup: GTINs via Open Food Facts (falling back to
- * Open Products Facts for non-food), ISBN books via Open Library, GS1
- * element strings via their (01) GTIN through OFF.
+ * Optional product lookup.
+ *
+ * GTINs are asked of a chain of keyless databases, stopping at the
+ * first hit (see kFacts[] in the .cpp):
+ *   Open Food Facts -> Open Beauty Facts -> Open Pet Food Facts ->
+ *   Open Products Facts -> UPCitemdb (commercial index, trial tier,
+ *   local daily quota kept so we never exceed its stated 100/day).
+ * ISBN books go to Open Library; GS1 element strings contribute their
+ * (01) GTIN to the same chain.
  *
  * Offline-first: only fires when the user enabled it in Settings and the
  * code matches one of the supported shapes (see lookupSupported()).
  * Results are cached by the caller in History (setProductName). No
- * tracking upload — one GET per unknown code with a product User-Agent.
- * Network permission is declared in the .desktop Sailjail profile; the
- * privacy policy states decoding is on-device and network is only used
- * for this lookup.
+ * tracking upload — sequential GETs carrying only the code, with a
+ * product User-Agent. Network permission is declared in the .desktop
+ * Sailjail profile; the privacy policy names every destination.
  */
 class ProductLookup : public QObject
 {
@@ -41,6 +46,9 @@ private slots:
 
 private:
     void parseOpenLibrary(const QString &query, const QByteArray &body);
+    void parseUpcItemDb(const QString &query, const QByteArray &body);
+    void requestFacts(const QString &query, const QString &gtin, int chain);
+    bool requestUpcItemDb(const QString &query, const QString &gtin);
 
     QNetworkAccessManager m_net;
 };

@@ -1,6 +1,6 @@
 # ZenDecoder — Privacy Policy
 
-**Last updated: 2026-10-05**
+**Last updated: 2026-10-09**
 
 ZenDecoder (harbour-zendecoder) is a barcode and QR code reader for
 Sailfish OS. The short version: **nothing you scan leaves the phone
@@ -26,13 +26,15 @@ the code:
 
 | Code | Endpoint |
 |------|----------|
-| EAN/UPC/GTIN | Open Food Facts (https://world.openfoodfacts.org), falling back to Open Products Facts (https://world.openproductsfacts.org) for non-food items |
+| EAN/UPC/GTIN | Chained, first match wins: **Open Food Facts** → **Open Beauty Facts** → **Open Pet Food Facts** → **Open Products Facts** (all https://world.open*.org, same API), then **UPCitemdb** (https://upcitemdb.com, commercial index, keyless trial tier capped by us at 100 lookups/day) |
 | ISBN (books) | Open Library (https://openlibrary.org) |
-| GS1 element string | its (01) GTIN, via Open Food Facts as above |
+| GS1 element string | its (01) GTIN, through the chain above |
 
-Open Food Facts and Open Products Facts are non-profit collaborative
+Open Food Facts and its sibling projects are non-profit collaborative
 databases and apply their own privacy policy:
-https://world.openfoodfacts.org/privacy
+https://world.openfoodfacts.org/privacy. UPCitemdb is a commercial
+service with its own terms; it is only reached as the last step, for
+codes none of the open databases know.
 
 ## What is explicitly absent
 

@@ -26,8 +26,8 @@ Page {
 
             TextSwitch {
                 width: parent.width
-                text: "Product lookup (Open Food Facts)"
-                description: "Look up EAN/UPC codes online. Decoding itself stays on-device."
+                text: "Product lookup"
+                description: "Look up scanned codes online — food, cosmetics, pet food, other goods and books — across open product databases and a public barcode index. Decoding itself stays on-device."
                 checked: settings.productLookupEnabled
                 onClicked: settings.productLookupEnabled = !settings.productLookupEnabled
             }

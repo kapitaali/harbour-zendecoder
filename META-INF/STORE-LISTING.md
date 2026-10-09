@@ -19,9 +19,10 @@ entirely on your device, with no account, no ads and no tracking.
 - **History** — every scan kept, with symbology and timestamp; export the
   whole log as CSV or JSON
 - **Product & book lookup** — optionally look up scanned codes online:
-  EAN/UPC/GTINs against Open Food Facts (falling back to Open Products
-  Facts for non-food items) and book ISBNs against Open Library (decoding
-  itself never leaves the phone)
+  a chain of open product databases (Open Food Facts, Beauty Facts,
+  Pet Food Facts, Products Facts) and a public barcode index for
+  EAN/UPC/GTINs, and Open Library for book ISBNs — first match wins,
+  and decoding itself never leaves the phone
 - **Your formats, your rules** — switch code groups on or off in Settings;
   the scanner only hunts for what you care about
 - **Considered battery use** — the camera fully releases while the app is
@@ -35,18 +36,20 @@ Decoding is powered by libomniscan with zxing-cpp (Apache-2.0).
 - Newly readable formats: postal codes (KIX, RM4SCC), MSI, Plessey,
   Telepen, Pharmacode, and the stacked codes Code 16K and Codablock F
 - DataBar Limited and all DataBar variants now read (reported as DataBar)
-- Book ISBNs look up title and author via Open Library; non-food products
-  fall back to Open Products Facts when Open Food Facts has no match
+- Book ISBNs look up title and author via Open Library; product codes
+  now chain four open databases (food, cosmetics, pet food, general
+  goods) plus a rate-limited barcode index — first match wins
 - Torch button removed — the OS sandbox blocks in-app flashlight control;
   use the pull menu's torch instead
 
 ## Privacy (short version for the form)
 
 All decoding happens on the device. The only network traffic is the optional
-lookup, which sends the scanned numeric code (nothing else) to Open Food
-Facts / Open Products Facts for products or Open Library for book ISBNs,
-and only when you enable it. Full policy: PRIVACY.md shipped with the
-package, and at
+lookup, which sends the scanned numeric code (nothing else) to open product
+databases — Open Food Facts, Open Beauty Facts, Open Pet Food Facts, Open
+Products Facts — then a rate-limited barcode index, or to Open Library for
+book ISBNs, and only when you enable it. Full policy: PRIVACY.md shipped with
+the package, and at
 https://github.com/kapitaali/harbour-zendecoder/blob/main/PRIVACY.md.
 
 ## Store listing assets

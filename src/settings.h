@@ -30,6 +30,9 @@ class Settings : public QObject
 public:
     explicit Settings(QObject *parent = nullptr);
 
+    /** INI path shared by every settings/quota key (sandbox-safe, see above). */
+    static QString settingsFilePath();
+
     bool soundEnabled() const;
     void setSoundEnabled(bool on);
     bool vibrationEnabled() const;
@@ -57,8 +60,6 @@ signals:
     void formatMaskChanged();
 
 private:
-    static QString settingsFilePath();
-
     QSettings m_settings;
     bool m_soundEnabled;
     bool m_vibrationEnabled;
