@@ -31,9 +31,10 @@ entirely on your device, with no account, no ads and no tracking.
 
 Decoding is powered by libomniscan with zxing-cpp (Apache-2.0).
 
-## What's new (0.2.0)
+## What's new (0.2.1)
 
-- New decoding engine (libomniscan), decoding entirely on-device as before
+- New decoding engine (libomniscan 0.5.0), decoding entirely on-device
+  as before
 - Newly readable formats: postal codes (KIX, RM4SCC), MSI, Plessey,
   Telepen, Pharmacode, and the stacked codes Code 16K, Codablock F,
   Code 49, Micro PDF417 and Grid Matrix
