@@ -1,7 +1,10 @@
 #pragma once
-// vCard 3.0/4.0 (RFC 6350) field extraction (M7). Keys "payload"="vcard"
-// plus "vcard.<FIELD>" (uppercased names, params stripped, repeats joined
-// with '\n', standard backslash unescapes). Pure, deterministic.
+/**
+@file
+vCard 3.0/4.0 (RFC 6350) field extraction (M7). Keys "payload"="vcard"
+    plus "vcard.<FIELD>" (uppercased names, params stripped, repeats joined
+    with '\n', standard backslash unescapes). Pure, deterministic.
+*/
 #include <map>
 #include <string>
 #include "omniscan/export.h"
@@ -9,6 +12,7 @@
 namespace omniscan {
 namespace payload {
 
+/// Parse vCard fields (3.0/4.0). @return true when the text is a vCard (parsed merged).
 OMNISCAN_API bool parse_vcard(const std::string& text, std::map<std::string, std::string>& out);
 
 }  // namespace payload

@@ -1,5 +1,8 @@
 #pragma once
-// Umbrella header: #include <omniscan/omniscan.h> gets the full public API.
+/// @file
+/// Umbrella header: `#include <omniscan/omniscan.h>` gets the full
+/// public API (version, symbologies, geometry, image, I/O, binarizer,
+/// locator, result, options, decode, payload).
 #include "omniscan/version.h"
 #include "omniscan/symbology.h"
 #include "omniscan/geometry.h"

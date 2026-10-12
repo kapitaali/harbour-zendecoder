@@ -66,6 +66,9 @@ struct NativeBackend final : backend_zxing::Backend {
                symbology_bit(Symbology::KIX) |
                symbology_bit(Symbology::Code16K) |
                symbology_bit(Symbology::CodablockF) |
+               symbology_bit(Symbology::MicroPDF417) |
+               symbology_bit(Symbology::Code49) |
+               symbology_bit(Symbology::GridMatrix) |
                symbology_bit(Symbology::MaxiCode) |
                // DataBar is an umbrella bit (six variants); the native
                // reader implements Omnidirectional only — see the decline

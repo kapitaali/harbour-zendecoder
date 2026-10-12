@@ -1,5 +1,5 @@
 # libomniscan v0.2.0 — vendored static, backend ON (single decode stack).
-# Source: ~/Jolla/libomniscan commit 561b9e2 (Apache-2.0, see LICENSE),
+# Source: ~/Jolla/libomniscan commit 73c891b (Apache-2.0, see LICENSE),
 # pristine subset: include/omniscan/**, src/{core,backend_zxing,formats,
 # payload}/**. Excluded: capi/ + io/ (app uses the C++ API and Qt image
 # loading), tests/, tools/, bindings/, docs/, cmake/, third_party/.
@@ -48,6 +48,10 @@ SOURCES += \
     $$OMNISCAN_ROOT/src/formats/stacked/native_stacked.cpp \
     $$OMNISCAN_ROOT/src/formats/stacked/stacked_16k.cpp \
     $$OMNISCAN_ROOT/src/formats/stacked/stacked_cbf.cpp \
+    $$OMNISCAN_ROOT/src/formats/stacked/stacked_code49.cpp \
+    $$OMNISCAN_ROOT/src/formats/stacked/stacked_gridmatrix.cpp \
+    $$OMNISCAN_ROOT/src/formats/stacked/stacked_gridmatrix_image.cpp \
+    $$OMNISCAN_ROOT/src/formats/stacked/stacked_micropdf417.cpp \
     $$OMNISCAN_ROOT/src/payload/gs1_ai.cpp \
     $$OMNISCAN_ROOT/src/payload/mecard.cpp \
     $$OMNISCAN_ROOT/src/payload/otpauth.cpp \

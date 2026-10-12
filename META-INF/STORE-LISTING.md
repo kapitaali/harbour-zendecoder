@@ -13,7 +13,8 @@ entirely on your device, with no account, no ads and no tracking.
 
 - **Live scanning** — point and go: QR (incl. Micro QR and rMQR), EAN/8,
   EAN-13, UPC-A/E, ISBN, ITF, Code 39/93/128, Codabar, DataBar, stacked
-  Code 16K and Codablock F, Aztec, Data Matrix, MaxiCode, PDF417,
+  Code 16K, Codablock F and Code 49, Aztec, Data Matrix, MaxiCode,
+  Grid Matrix, PDF417 and Micro PDF417,
   postal codes (KIX, RM4SCC), MSI/Plessey, Telepen, Pharmacode
 - **Import from gallery** — decode codes from screenshots and photos
 - **History** — every scan kept, with symbology and timestamp; export the
@@ -34,8 +35,10 @@ Decoding is powered by libomniscan with zxing-cpp (Apache-2.0).
 
 - New decoding engine (libomniscan), decoding entirely on-device as before
 - Newly readable formats: postal codes (KIX, RM4SCC), MSI, Plessey,
-  Telepen, Pharmacode, and the stacked codes Code 16K and Codablock F
+  Telepen, Pharmacode, and the stacked codes Code 16K, Codablock F,
+  Code 49, Micro PDF417 and Grid Matrix
 - DataBar Limited and all DataBar variants now read (reported as DataBar)
+- MaxiCode reads rotated and damaged codes far more reliably
 - Book ISBNs look up title and author via Open Library; product codes
   now chain four open databases (food, cosmetics, pet food, general
   goods) plus a rate-limited barcode index — first match wins

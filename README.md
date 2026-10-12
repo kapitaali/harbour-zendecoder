@@ -11,14 +11,17 @@ entirely on your device. No account, no ads, no tracking.
 ## Features
 
 - **Live scanning** — QR (incl. Micro QR and rMQR), EAN-8, EAN-13, UPC-A/E,
-  ISBN, ITF, Code 39/93/128, Codabar, DataBar, DX film edge, Aztec,
-  Data Matrix, MaxiCode, PDF417
+  ISBN, ITF, Code 39/93/128, Codabar, DataBar, Code 16K, Codablock F,
+  Code 49, Aztec, Data Matrix, MaxiCode, Grid Matrix, PDF417 and
+  Micro PDF417, postal codes, MSI/Plessey, Telepen, Pharmacode
 - **Import from gallery** — decode codes from screenshots and photos
 - **History** — every scan kept with symbology and timestamp, exportable as
   CSV or JSON
-- **Product lookup** — optional lookup of scanned EAN/UPC codes against
-  [Open Food Facts](https://world.openfoodfacts.org) (the number is the only
-  thing sent, and only when you enable it)
+- **Product & book lookup** — optional, off by default: a chain of open
+  product databases ([Open Food Facts](https://world.openfoodfacts.org),
+  Beauty/Pet Food/Products Facts) plus a barcode index for EAN/UPC codes,
+  and Open Library for ISBNs — first match wins, one fetch per code per
+  day, and the scanned number is the only thing that leaves the phone
 - **Your formats, your rules** — switch code groups on or off in Settings
 - **Considered battery use** — the camera fully releases while the app is
   in the background

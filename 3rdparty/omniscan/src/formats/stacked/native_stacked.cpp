@@ -1,4 +1,4 @@
-// Native stacked dispatcher: Code 16K (M3-tier-2-stacked) and Codablock F.
+// Native stacked dispatcher: Code 16K, Codablock F, and MicroPDF417.
 // Code 16K: segment row bands by separator/border bars, decode each row's
 // five Code128-width codewords (space-first polarity convention — codeword
 // patterns start on space runs where standalone Code128 starts on bars;
@@ -16,6 +16,9 @@
 #include "omniscan/binarizer.h"
 #include "stacked_16k.h"
 #include "stacked_cbf.h"
+#include "stacked_code49.h"
+#include "stacked_gridmatrix.h"
+#include "stacked_micropdf417.h"
 #include "../linear/codecs.h"
 #include "../linear/linear_scan.h"
 #include "../linear/code128_table.h"
@@ -24,7 +27,9 @@ namespace omniscan {
 namespace stacked {
 
 bool native_stacked_handled(Symbology s) noexcept {
-    return s == Symbology::Code16K || s == Symbology::CodablockF;
+    return s == Symbology::Code16K || s == Symbology::CodablockF ||
+           s == Symbology::MicroPDF417 ||
+           s == Symbology::GridMatrix;
 }
 
 namespace {
@@ -300,7 +305,14 @@ DecodeStatus decode_native_stacked(const ImageView& img, const Options& opt,
                           symbology_bit(Symbology::Code16K)) != 0;
     const bool wantcbf = (opt.enabled_symbologies &
                           symbology_bit(Symbology::CodablockF)) != 0;
-    if (!want16k && !wantcbf) return DecodeStatus::UnsupportedSymbology;
+    const bool wantmp = (opt.enabled_symbologies &
+                         symbology_bit(Symbology::MicroPDF417)) != 0;
+    const bool want49 = (opt.enabled_symbologies &
+                         symbology_bit(Symbology::Code49)) != 0;
+    const bool wantgm = (opt.enabled_symbologies &
+                          symbology_bit(Symbology::GridMatrix)) != 0;
+    if (!want16k && !wantcbf && !wantmp && !want49 && !wantgm)
+        return DecodeStatus::UnsupportedSymbology;
     DecodeStatus st = DecodeStatus::NoBarcodeFound;
     // Binarizer passes mirror the linear/postal dispatchers: Otsu always,
     // Sauvola retry under try_harder.
@@ -318,6 +330,14 @@ DecodeStatus decode_native_stacked(const ImageView& img, const Options& opt,
         try {
             if (want16k && try_decode_16k(bin, out)) found = true;
             if (!found && wantcbf && try_decode_cbf(bin, out)) found = true;
+            if (!found && wantmp &&
+                micropdf417::try_decode_mp417(bin, out))
+                found = true;
+            if (!found && want49 && code49::try_decode_c49(bin, out))
+                found = true;
+            if (!found && wantgm &&
+                gridmatrix::try_decode_gridmatrix(bin, out))
+                found = true;
         } catch (...) {
             return DecodeStatus::BackendError;
         }

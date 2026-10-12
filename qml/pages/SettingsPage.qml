@@ -54,7 +54,7 @@ Page {
             TextSwitch {
                 width: parent.width
                 text: "Linear codes"
-                description: "Code 39, Code 93, Code 128, Codabar, DataBar, DX film edge"
+                description: "Code 39, Code 93, Code 128, Codabar, DataBar, Code 49"
                 checked: settings.formatLinear
                 onClicked: settings.formatLinear = !settings.formatLinear
             }
@@ -62,7 +62,7 @@ Page {
             TextSwitch {
                 width: parent.width
                 text: "2D codes"
-                description: "QR (incl. Micro QR and rMQR), Aztec, Data Matrix, MaxiCode"
+                description: "QR (incl. Micro QR and rMQR), Aztec, Data Matrix, MaxiCode, Grid Matrix"
                 checked: settings.formatMatrix
                 onClicked: settings.formatMatrix = !settings.formatMatrix
             }
@@ -70,7 +70,7 @@ Page {
             TextSwitch {
                 width: parent.width
                 text: "PDF417"
-                description: "PDF417, Compact and Micro PDF417"
+                description: "PDF417 and Micro PDF417"
                 checked: settings.formatPdf417
                 onClicked: settings.formatPdf417 = !settings.formatPdf417
             }

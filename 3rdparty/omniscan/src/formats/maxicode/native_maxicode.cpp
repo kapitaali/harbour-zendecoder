@@ -70,33 +70,45 @@ DecodeStatus decode_native_maxicode(const ImageView& img, const Options& opt,
     // Default path is untouched (measured bench-neutral); this stage
     // costs ~0.1-0.2s per photo worst case. See
     // docs/formats/maxicode.md §Image pipeline.
+    // Two binarizer passes: Otsu first (deterministic photo input),
+    // then Sauvola. A cluttered frame shifts Otsu's global threshold
+    // and fragments the rings (measured: s_est -12%, centroid +5u on
+    // noise backgrounds); the local Sauvola threshold preserves them
+    // (10/11 Otsu-misses on the clutter x distortion set decode under
+    // Sauvola, the 11th jointly with the despeckle retry). Mirrors the
+    // Otsu/Sauvola located passes above; the second pass runs only
+    // after the first fails, so images Otsu decodes never pay for it.
     if (opt.try_harder && out.empty()) {
-        BinaryImage bin;
-        BinarizerParams bp;  // Otsu default: deterministic photo input
-        if (binarize(img, bp, bin) == DecodeStatus::Ok && !bin.empty() &&
-            bin.width >= 32 && bin.height >= 32) {
-            std::string text;
-            bool found = false;
-            try {
-                found = maxicode::decode_photo(bin, text);
-            } catch (...) {
-                return DecodeStatus::BackendError;
-            }
-            if (found) {
+        for (int pass = 0; pass < 2; ++pass) {
+            BinaryImage bin;
+            BinarizerParams bp;
+            bp.method = (pass == 0) ? BinarizerMethod::Otsu
+                                    : BinarizerMethod::Sauvola;
+            if (binarize(img, bp, bin) == DecodeStatus::Ok && !bin.empty() &&
+                bin.width >= 32 && bin.height >= 32) {
+                std::string text;
+                bool found = false;
                 try {
-                    Result res;
-                    res.symbology = Symbology::MaxiCode;
-                    res.text = text;
-                    res.confidence = 1.0f;
-                    res.location = Quad(
-                        Point{0.0f, 0.0f}, Point{(float)bin.width, 0.0f},
-                        Point{(float)bin.width, (float)bin.height},
-                        Point{0.0f, (float)bin.height});
-                    out.push_back(std::move(res));
+                    found = maxicode::decode_photo(bin, text);
                 } catch (...) {
                     return DecodeStatus::BackendError;
                 }
-                return DecodeStatus::Ok;
+                if (found) {
+                    try {
+                        Result res;
+                        res.symbology = Symbology::MaxiCode;
+                        res.text = text;
+                        res.confidence = 1.0f;
+                        res.location = Quad(
+                            Point{0.0f, 0.0f}, Point{(float)bin.width, 0.0f},
+                            Point{(float)bin.width, (float)bin.height},
+                            Point{0.0f, (float)bin.height});
+                        out.push_back(std::move(res));
+                    } catch (...) {
+                        return DecodeStatus::BackendError;
+                    }
+                    return DecodeStatus::Ok;
+                }
             }
         }
     }

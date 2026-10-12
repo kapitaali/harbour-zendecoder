@@ -57,13 +57,13 @@ omniscan::SymMask selectedSymbologies(quint32 mask)
     add(FormatGroup::Linear,
         {S::Code39, S::Code93, S::Code128, S::Codabar, S::DataBar,
          S::DataBarExpanded, S::MSI, S::Plessey, S::Telepen, S::Pharmacode,
-         S::CodablockF, S::Code16K,
+         S::CodablockF, S::Code16K, S::Code49,
          S::USPSIMb, S::RM4SCC, S::AustraliaPost, S::JapanPost,
          S::DeutschePost, S::KIX});
     add(FormatGroup::Matrix,
         {S::QRCode, S::MicroQRCode, S::RmQR, S::DataMatrix, S::Aztec,
-         S::MaxiCode});
-    add(FormatGroup::Pdf417, {S::PDF417});
+         S::MaxiCode, S::GridMatrix});
+    add(FormatGroup::Pdf417, {S::PDF417, S::MicroPDF417});
     return out;
 }
 
@@ -75,9 +75,12 @@ omniscan::SymMask selectedSymbologies(quint32 mask)
  * silent: ISBN/EAN-2/5 addons, Code 39 Std/Ext, Code 32, PZN, ITF-14 and
  * the DataBar/Aztec/QR/PDF417 sub-variants no longer exist as separate
  * zxing 2.3.0 results — they read as their base symbology with identical
- * text (verified on fixtures; MicroPDF417 and DX Film Edge have no
+ * text (verified on fixtures; DX Film Edge has no
  * reader yet — reported, not renamed). DataBar Limited now reads as
- * its umbrella "DataBar" (lib adapter fix).
+ * its umbrella "DataBar" (lib adapter fix). Micro PDF417, Code 49 and
+ * Grid Matrix gained native readers in libomniscan 0.4/0.5 — formats
+ * the app could never show, so they get display names freely ("Code 49"
+ * / "Grid Matrix" spell out the lib's Code49/GridMatrix).
  */
 QString appLabel(omniscan::Symbology s)
 {
@@ -103,6 +106,9 @@ QString appLabel(omniscan::Symbology s)
     case S::CodablockF: return QStringLiteral("Codablock F");
     case S::Code16K: return QStringLiteral("Code 16K");
     case S::MaxiCode: return QStringLiteral("MaxiCode");
+    case S::MicroPDF417: return QStringLiteral("Micro PDF417");
+    case S::Code49: return QStringLiteral("Code 49");
+    case S::GridMatrix: return QStringLiteral("Grid Matrix");
     default: break;
     }
     // Native-only symbologies (MSI, KIX, ...) and anything unexpected:
